@@ -13,7 +13,8 @@ import {
   Calendar,
   MapPin,
   Briefcase,
-  Users
+  Users,
+  Archive
 } from 'lucide-react';
 import { supabase } from '../../supabase';
 import { UserProfile, UserRole, UserStatus } from '../../types';
@@ -204,7 +205,12 @@ const UserDetail: React.FC<UserDetailProps> = ({ userId, onBack, canEdit = true 
             </p>
             
             <div className="flex flex-wrap justify-center gap-2 mb-6">
-              {/* Status and verification removed */}
+              {user.status === 'ARCHIVED' && (
+                <span className="flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  <Archive size={12} />
+                  Archived
+                </span>
+              )}
             </div>
 
             <div className="space-y-4 text-left border-t border-gray-50 pt-6">
@@ -358,6 +364,25 @@ const UserDetail: React.FC<UserDetailProps> = ({ userId, onBack, canEdit = true 
                   )}
                 </div>
               )}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status</label>
+                {isEditing ? (
+                  <select 
+                    value={formData.status} 
+                    onChange={(e) => handleChange('status', e.target.value as UserStatus)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-brand outline-none text-sm"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="SUSPENDED">Suspended</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </select>
+                ) : (
+                  <p className={`text-sm font-bold ${user.status === 'ARCHIVED' ? 'text-amber-600' : 'text-gray-900'}`}>
+                    {user.status}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

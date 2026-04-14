@@ -7,7 +7,8 @@ export type UserStatus =
   | 'PENDING_DOCS' 
   | 'UNDER_REVIEW' 
   | 'ACTIVE' 
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'ARCHIVED';
 
 export interface UserProfile {
   id: string;

@@ -10,13 +10,15 @@ import {
   BadgeCheck,
   ChevronDown,
   LayoutGrid,
-  List
+  List,
+  Archive
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import UserDetail from './UserDetail';
+import AddUserForm from './AddUserForm';
 
 const UserManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,6 +26,7 @@ const UserManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -72,6 +75,24 @@ const UserManagement: React.FC = () => {
         setUsers(prev => prev.filter(u => u.id !== id));
       } catch (err) {
         console.error('Error deleting user:', err);
+      }
+    }
+  };
+
+  const handleArchive = async (id: string, currentStatus: string) => {
+    const isArchived = currentStatus === 'ARCHIVED';
+    const action = isArchived ? 'unarchive' : 'archive';
+    if (window.confirm(`Are you sure you want to ${action} this user?`)) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ status: isArchived ? 'ACTIVE' : 'ARCHIVED' })
+          .eq('id', id);
+        
+        if (error) throw error;
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, status: isArchived ? 'ACTIVE' : 'ARCHIVED' } : u));
+      } catch (err) {
+        console.error(`Error ${action}ing user:`, err);
       }
     }
   };
@@ -132,7 +153,10 @@ const UserManagement: React.FC = () => {
               <span>Filter</span>
             </button>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-brand/10">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-brand/10"
+          >
             <span>Add User</span>
           </button>
         </div>
@@ -190,7 +214,12 @@ const UserManagement: React.FC = () => {
                               {user.firstName?.[0]}{user.lastName?.[0]}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-gray-900">{user.firstName} {user.lastName}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-gray-900">{user.firstName} {user.lastName}</p>
+                                {user.status === 'ARCHIVED' && (
+                                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase tracking-wider">Archived</span>
+                                )}
+                              </div>
                               <p className="text-xs text-gray-500">{user.email}</p>
                             </div>
                           </div>
@@ -214,6 +243,16 @@ const UserManagement: React.FC = () => {
                         </td>
                         <td className="py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchive(user.id!, user.status!);
+                              }}
+                              className={`p-2 rounded-lg transition-all ${user.status === 'ARCHIVED' ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                              title={user.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
+                            >
+                              <Archive size={18} />
+                            </button>
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -270,7 +309,12 @@ const UserManagement: React.FC = () => {
                         {user.firstName?.[0]}{user.lastName?.[0]}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-gray-900 truncate">{user.firstName} {user.lastName}</h3>
+                        <div className="flex items-center gap-2 truncate">
+                          <h3 className="text-sm font-bold text-gray-900 truncate">{user.firstName} {user.lastName}</h3>
+                          {user.status === 'ARCHIVED' && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded uppercase tracking-wider shrink-0">Archived</span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
                       </div>
                     </div>
@@ -309,6 +353,16 @@ const UserManagement: React.FC = () => {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleArchive(user.id!, user.status!);
+                        }}
+                        className={`p-2 rounded-xl transition-all ${user.status === 'ARCHIVED' ? 'bg-amber-50 text-amber-600' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                        title={user.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
+                      >
+                        <Archive size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDelete(user.id!);
                         }}
                         className="p-2 text-gray-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all"
@@ -330,9 +384,15 @@ const UserManagement: React.FC = () => {
         activeFilters={activeFilters}
         onApply={setActiveFilters}
         fields={[
-          { key: 'status', label: 'Status', type: 'select', options: ['ACTIVE', 'PENDING', 'SUSPENDED'] },
+          { key: 'status', label: 'Status', type: 'select', options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'ARCHIVED'] },
           { key: 'role', label: 'Role', type: 'select', options: ['admin', 'partner', 'institution'] }
         ]}
+      />
+
+      <AddUserForm 
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={fetchUsers}
       />
     </div>
   );
