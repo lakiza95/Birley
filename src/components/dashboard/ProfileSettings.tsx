@@ -26,6 +26,9 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
     bio: user.bio || '',
     website: user.website || '',
     timezone: user.timezone || 'UTC',
+    payment_model: user.payment_model || '100_upfront',
+    first_payment_percent: user.first_payment_percent || 100,
+    second_payment_deadline_days: user.second_payment_deadline_days || 5,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -335,20 +338,22 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
               </div>
 
               {user.role === 'institution' && (
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Website</label>
-                  <div className="relative">
-                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
-                      name="website"
-                      value={formData.website}
-                      onChange={handleChange}
-                      disabled={!isEditing}
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-[#4338CA] transition-all outline-none text-sm font-medium disabled:opacity-60" 
-                    />
+                <>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Website</label>
+                    <div className="relative">
+                      <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="text" 
+                        name="website"
+                        value={formData.website}
+                        onChange={handleChange}
+                        disabled={!isEditing}
+                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-[#4338CA] transition-all outline-none text-sm font-medium disabled:opacity-60" 
+                      />
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               <div className="space-y-2 md:col-span-2">

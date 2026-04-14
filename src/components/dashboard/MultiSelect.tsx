@@ -7,6 +7,8 @@ interface MultiSelectProps {
   label: string;
   selected: string[];
   onChange: (selected: string[]) => void;
+  options?: string[];
+  showFlags?: boolean;
 }
 
 // Mapping for country names to flag codes
@@ -33,7 +35,7 @@ const countryToCode: { [key: string]: string } = {
   "Vietnam": "VN", "Yemen": "YE", "Zambia": "ZM", "Zimbabwe": "ZW"
 };
 
-const MultiSelect: React.FC<MultiSelectProps> = ({ label, selected, onChange }) => {
+const MultiSelect: React.FC<MultiSelectProps> = ({ label, selected, onChange, options = COUNTRIES, showFlags = true }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -56,9 +58,10 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ label, selected, onChange }) 
     );
   };
 
-  const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase()));
+  const filteredOptions = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
 
   const renderFlag = (country: string) => {
+    if (!showFlags) return null;
     const code = countryToCode[country];
     if (!code) return null;
     const FlagComponent = (Flags as any)[code];
@@ -94,16 +97,16 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ label, selected, onChange }) 
               </div>
             </div>
             <div className="max-h-48 overflow-y-auto p-2 space-y-1">
-              {filteredCountries.map(country => (
-                <label key={country} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer text-sm text-gray-700">
+              {filteredOptions.map(option => (
+                <label key={option} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer text-sm text-gray-700">
                   <input
                     type="checkbox"
-                    checked={selected.includes(country)}
-                    onChange={() => toggleOption(country)}
+                    checked={selected.includes(option)}
+                    onChange={() => toggleOption(option)}
                     className="rounded border-gray-300 text-[#4338CA] focus:ring-[#4338CA]"
                   />
-                  {renderFlag(country)}
-                  {country}
+                  {renderFlag(option)}
+                  {option}
                 </label>
               ))}
             </div>

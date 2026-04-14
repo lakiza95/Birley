@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { School, Search, Plus, Filter, MoreVertical, CheckCircle2, Clock, Users, GraduationCap, X, Save, AlertCircle, ChevronDown, Edit2, BookOpen, ArrowRight } from 'lucide-react';
+import { School, Search, Plus, Filter, MoreVertical, CheckCircle2, Clock, Users, GraduationCap, X, Save, AlertCircle, ChevronDown, Edit2, BookOpen, ArrowRight, AlertTriangle } from 'lucide-react';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
+import { getNames } from 'country-list';
+import { SPECIALIZATIONS } from '../../constants/specializations';
 import { UserProfile } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getRoleTheme } from '../../utils/theme';
 
 interface ProgramsListProps {
   user: UserProfile;
+  onProgramSelect?: (program: any) => void;
 }
 
 import { COUNTRIES } from '../../constants/countries';
+import { DOCUMENT_TYPES } from '../../constants/documents';
 import SpecializationSelector from './SpecializationSelector';
 import MultiSelect from './MultiSelect';
 
-const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
+const ProgramsList: React.FC<ProgramsListProps> = ({ user, onProgramSelect }) => {
   const theme = getRoleTheme(user.role);
   const [programs, setPrograms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +74,8 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
     enrollment_deadline: '',
     commission: '0',
     countries_not_accepted: [] as string[],
-    countries_preferred: [] as string[]
+    countries_preferred: [] as string[],
+    required_documents: [] as string[]
   });
 
   useEffect(() => {
@@ -240,7 +246,8 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
       enrollment_deadline: program.enrollment_deadline || '',
       commission: program.commission?.toString() || '0',
       countries_not_accepted: program.countries_not_accepted || [],
-      countries_preferred: program.countries_preferred || []
+      countries_preferred: program.countries_preferred || [],
+      required_documents: program.required_documents || []
     });
     setIsModalOpen(true);
   };
@@ -285,7 +292,8 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
         enrollment_deadline: formData.enrollment_deadline || null,
         commission: parseFloat(formData.commission) || 0,
         countries_not_accepted: formData.countries_not_accepted,
-        countries_preferred: formData.countries_preferred
+        countries_preferred: formData.countries_preferred,
+        required_documents: formData.required_documents
       };
 
       if (!editingProgramId) {
@@ -342,7 +350,8 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
         enrollment_deadline: '',
         commission: '0',
         countries_not_accepted: [],
-        countries_preferred: []
+        countries_preferred: [],
+        required_documents: []
       });
       fetchPrograms();
     } catch (err: any) {
@@ -384,12 +393,32 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
     return months[lowerIntake] || intake;
   };
 
-  const filteredPrograms = programs.filter(prog => 
-    clean(prog.name).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    clean(prog.level).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (clean(prog.specialization).toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
+  const filteredPrograms = programs.filter(prog => {
+    const matchesSearch = 
+      clean(prog.name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      clean(prog.level)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (clean(prog.specialization)?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'status') return prog.status === value;
+      if (key === 'level') return prog.level === value;
+      if (key === 'language') return prog.language === value;
+      if (key === 'country') return prog.country?.toLowerCase().includes(value.toLowerCase());
+      if (key === 'specialization') return prog.specialization?.toLowerCase().includes(value.toLowerCase());
+      if (key === 'tuition_min') return prog.tuitionFee >= Number(value);
+      if (key === 'tuition_max') return prog.tuitionFee <= Number(value);
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
+  });
+
+  const isUnverifiedRecruiter = user.role === 'partner' && !user.is_verified;
+  const displayPrograms = isUnverifiedRecruiter ? filteredPrograms.slice(0, 3) : filteredPrograms;
 
   return (
     <div className="space-y-4">
@@ -478,6 +507,21 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
       </div>
 
       <div className="flex flex-col gap-4">
+        {isUnverifiedRecruiter && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Verification Required</h3>
+              <p className="text-xs text-amber-700 mt-0.5">
+                As an unverified recruiter, you can only see up to 3 programs. 
+                Please complete your profile verification to unlock the full list.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {(user.role === 'admin' || user.role === 'institution') && (
             <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm w-fit">
@@ -513,8 +557,11 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
               className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-sm shadow-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-3 text-gray-600 hover:bg-gray-50 bg-white rounded-2xl transition-all border border-gray-200 font-bold text-xs shadow-sm">
+          <div className="flex items-center gap-2 relative">
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-2xl transition-all border font-bold text-xs shadow-sm ${Object.keys(activeFilters).length > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'text-gray-600 hover:bg-gray-50 bg-white border-gray-200'}`}
+            >
               <Filter size={16} />
               <span>Filters</span>
             </button>
@@ -534,10 +581,11 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
                 No programs found matching your search.
               </div>
             ) : (
-              filteredPrograms.map((prog) => (
+              displayPrograms.map((prog) => (
                 <div 
                   key={prog.id} 
-                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-100 transition-all group flex flex-col"
+                  onClick={() => onProgramSelect && onProgramSelect(prog)}
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-100 transition-all group flex flex-col cursor-pointer"
                 >
                   <div className="p-5 flex flex-col flex-1">
                     <div className="flex items-start justify-between mb-3">
@@ -637,7 +685,7 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
                       </td>
                     </tr>
                   ) : (
-                    filteredPrograms.map((prog) => (
+                    displayPrograms.map((prog) => (
                       <tr key={prog.id} className="hover:bg-indigo-50/30 transition-all group cursor-default">
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-4">
@@ -986,6 +1034,14 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
                         onChange={(selected) => setFormData({...formData, countries_not_accepted: selected})}
                       />
 
+                      <MultiSelect 
+                        label="Required Documents"
+                        selected={formData.required_documents}
+                        onChange={(selected) => setFormData({...formData, required_documents: selected})}
+                        options={DOCUMENT_TYPES}
+                        showFlags={false}
+                      />
+
                       <div className="flex items-center gap-3">
                         <input 
                           type="checkbox" 
@@ -1115,6 +1171,21 @@ const ProgramsList: React.FC<ProgramsListProps> = ({ user }) => {
           </div>
         )}
       </AnimatePresence>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['Active', 'Pending', 'Rejected'] },
+          { key: 'level', label: 'Level', type: 'select', options: ['Education', 'Bachelor', 'Master', 'PhD', 'Language Course'] },
+          { key: 'language', label: 'Language', type: 'select', options: ['English', 'Spanish', 'French', 'German', 'Italian'] },
+          { key: 'country', label: 'Country', type: 'select', options: getNames() },
+          { key: 'specialization', label: 'Program', type: 'select', options: Object.keys(SPECIALIZATIONS) },
+          { key: 'tuition', label: 'Tuition Cost', type: 'range' }
+        ]}
+      />
     </div>
   );
 };

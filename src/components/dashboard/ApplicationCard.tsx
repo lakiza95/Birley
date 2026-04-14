@@ -55,6 +55,39 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const [isCheckingChat, setIsCheckingChat] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [studentDetails, setStudentDetails] = useState<any>(null);
+
+  React.useEffect(() => {
+    const fetchDetails = async () => {
+      if (!application.student_id) return;
+      setIsLoadingDocs(true);
+      try {
+        // Fetch documents
+        const { data: docs, error: docsError } = await supabase
+          .from('student_documents')
+          .select('*')
+          .eq('student_id', application.student_id);
+        if (docsError) throw docsError;
+        setDocuments(docs || []);
+
+        // Fetch student details
+        const { data: student, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', application.student_id)
+          .single();
+        if (studentError) throw studentError;
+        setStudentDetails(student);
+      } catch (err) {
+        console.error('Error fetching application details:', err);
+      } finally {
+        setIsLoadingDocs(false);
+      }
+    };
+    fetchDetails();
+  }, [application.student_id]);
 
   const handleChatAction = async () => {
     if (!application.db_id) return;
@@ -268,6 +301,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     'Waiting payment': 'bg-orange-50 text-orange-600 border-orange-100',
     'Payment received': 'bg-teal-50 text-teal-600 border-teal-100',
     'Ready for visa': 'bg-cyan-50 text-cyan-600 border-cyan-100',
+    'Visa Approved': 'bg-indigo-50 text-indigo-600 border-indigo-100',
     'Done': 'bg-green-100 text-green-700 border-green-200',
     'Refund': 'bg-rose-50 text-rose-600 border-rose-100',
     // Legacy support
@@ -288,6 +322,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     'Waiting payment': Clock,
     'Payment received': CheckCircle2,
     'Ready for visa': FileText,
+    'Visa Approved': CheckCircle2,
     'Done': CheckCircle2,
     'Refund': AlertCircle,
     // Legacy support
@@ -360,17 +395,31 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                   </div>
                   <div className="flex-1">
                     <h4 className="text-lg font-bold text-gray-900 mb-1">{application.student}</h4>
-                    <div className="grid grid-cols-2 gap-4 mt-3">
-                      {application.student_email && application.student_email !== 'N/A' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 mt-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Mail size={14} className="text-gray-400" />
+                        <span>{application.student_email || studentDetails?.email || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Globe size={14} className="text-gray-400" />
+                        <span>{application.student_country || studentDetails?.country || 'N/A'}</span>
+                      </div>
+                      {studentDetails?.whatsapp && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Mail size={14} className="text-gray-400" />
-                          <span>{application.student_email}</span>
+                          <MessageSquare size={14} className="text-emerald-500" />
+                          <span>{studentDetails.whatsapp}</span>
                         </div>
                       )}
-                      {application.student_country && application.student_country !== 'N/A' && (
+                      {studentDetails?.educationlevel && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Globe size={14} className="text-gray-400" />
-                          <span>{application.student_country}</span>
+                          <GraduationCap size={14} className="text-gray-400" />
+                          <span>{studentDetails.educationlevel}</span>
+                        </div>
+                      )}
+                      {studentDetails?.passportnumber && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <FileText size={14} className="text-gray-400" />
+                          <span>Passport: {studentDetails.passportnumber}</span>
                         </div>
                       )}
                     </div>
@@ -386,12 +435,23 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Institution and Program</h3>
                 <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                      <Building2 size={24} />
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 overflow-hidden">
+                      {application.programs?.institutions?.logo_url ? (
+                        <img 
+                          src={application.programs.institutions.logo_url} 
+                          alt={application.institution} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <Building2 size={24} />
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">{application.institution}</p>
-                      <p className="text-xs text-gray-500">Toronto, Canada</p>
+                      <p className="text-xs text-gray-500">
+                        {[application.programs?.institutions?.city, application.programs?.institutions?.country].filter(Boolean).join(', ') || 'Location N/A'}
+                      </p>
                     </div>
                   </div>
                   <div className="h-[1px] bg-gray-50"></div>
@@ -401,7 +461,13 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">{application.program}</p>
-                      <p className="text-xs text-gray-500">Full-time • 4 years • Bachelor's</p>
+                      <p className="text-xs text-gray-500">
+                        {[
+                          application.programs?.duration && `${application.programs.duration}`,
+                          application.programs?.level && `${application.programs.level}`,
+                          application.programs?.tuition_fee && `${application.programs.tuition_fee} ${application.programs.currency || 'USD'}`
+                        ].filter(Boolean).join(' • ') || 'Program details N/A'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -443,6 +509,18 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                             <Globe size={12} className="text-gray-400" />
                             <span>{[application.recruiter.city, application.recruiter.country].filter(Boolean).join(', ') || '—'}</span>
                           </div>
+                          {application.recruiter.whatsapp && (
+                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                              <MessageSquare size={12} className="text-emerald-500" />
+                              <span>{application.recruiter.whatsapp}</span>
+                            </div>
+                          )}
+                          {application.recruiter.phone && (
+                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                              <Globe size={12} className="text-gray-400" />
+                              <span>{application.recruiter.phone}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -472,12 +550,59 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Required Documents</h3>
-                  <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">4/5 Uploaded</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${documents.length > 0 ? 'text-green-600 bg-green-50' : 'text-amber-600 bg-amber-50'}`}>
+                    {documents.length} Files Uploaded
+                  </span>
                 </div>
-                <div className="text-sm text-gray-500 italic">
-                  Document management is currently being updated.
-                </div>
+                
+                {isLoadingDocs ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400 animate-pulse">
+                    <Clock size={14} />
+                    <span>Loading documents...</span>
+                  </div>
+                ) : documents.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {documents.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-100 rounded-xl group hover:border-indigo-100 hover:bg-white transition-all">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-gray-400 group-hover:text-[#4338CA] transition-colors">
+                            <FileText size={16} />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-bold text-gray-900 truncate">{doc.name}</p>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">{doc.type || 'Document'}</p>
+                          </div>
+                        </div>
+                        <a 
+                          href={doc.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 text-gray-400 hover:text-[#4338CA] transition-colors"
+                        >
+                          <Download size={16} />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 border-2 border-dashed border-gray-100 rounded-2xl text-center">
+                    <FileText size={24} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-sm text-gray-500">No documents uploaded yet.</p>
+                  </div>
+                )}
               </section>
+
+              {/* Notes */}
+              {application.notes && (
+                <section>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Application Notes</h3>
+                  <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-5">
+                    <p className="text-sm text-amber-900 leading-relaxed italic">
+                      "{application.notes}"
+                    </p>
+                  </div>
+                </section>
+              )}
             </div>
 
             {/* Right Column: Timeline & Actions */}
@@ -557,16 +682,33 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                 <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
                   {(() => {
                     const steps = [
-                      { title: 'Application Submitted', status: 'completed' },
-                      { title: 'Under Review by University', status: ['In review', 'Approved', 'Waiting payment', 'Payment received', 'Ready for visa', 'Done'].includes(application.status) ? 'completed' : 'current' },
+                      { 
+                        title: 'Application Submitted', 
+                        date: application.created_at ? new Date(application.created_at).toLocaleDateString() : application.date,
+                        status: 'completed' 
+                      },
+                      { 
+                        title: 'Under Review', 
+                        status: ['In review', 'Approved', 'Waiting payment', 'Payment received', 'Ready for visa', 'Done'].includes(application.status) ? 'completed' : 'current' 
+                      },
                     ];
 
                     if (['Approved', 'Waiting payment', 'Payment received', 'Ready for visa', 'Done'].includes(application.status)) {
                       steps.push({ title: 'Approved', status: 'completed' });
                     } else if (application.status === 'Rejected') {
                       steps.push({ title: 'Rejected', status: 'current' });
-                    } else {
-                      steps.push({ title: 'Awaiting Decision', status: 'current' });
+                    }
+
+                    if (application.visa_approved_at) {
+                      steps.push({ 
+                        title: 'Visa Approved', 
+                        date: new Date(application.visa_approved_at).toLocaleDateString(),
+                        status: 'completed' 
+                      });
+                    }
+
+                    if (application.status === 'Done') {
+                      steps.push({ title: 'Process Completed', status: 'completed' });
                     }
 
                     return steps.map((item, i) => (
@@ -581,6 +723,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                           <p className={`text-sm font-bold ${item.status === 'upcoming' ? 'text-gray-400' : 'text-gray-900'}`}>
                             {item.title}
                           </p>
+                          {item.date && <p className="text-[10px] text-gray-500 font-medium">{item.date}</p>}
                         </div>
                       </div>
                     ));
@@ -589,21 +732,88 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
               </section>
 
               {/* Payment Section */}
-              {application.status === 'Accepted' && (
+              {['Accepted', 'Approved', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Done'].includes(application.status) && (
                 <section>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Payment</h3>
-                  <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4">
-                    <button className="flex-1 flex items-center justify-center gap-2 bg-[#4338CA] text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors">
-                      Pay
-                    </button>
-                    <button 
-                      onClick={handleCopyLink} 
-                      title="Copy payment link"
-                      className="p-2.5 text-gray-400 hover:text-[#4338CA] bg-gray-50 rounded-xl transition-colors"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                    </button>
-                  </div>
+                  
+                  {/* If institution uses split payment and status is Visa Approved, show 2nd payment */}
+                  {application.status === 'Visa Approved' ? (
+                    (() => {
+                      const inst = application.programs?.institutions;
+                      const isSplit = inst?.payment_model === 'split_payment';
+                      const isPlatform = inst?.payment_model === 'platform';
+                      const deadlineDays = inst?.second_payment_deadline_days || 5;
+                      const approvedDate = application.visa_approved_at ? new Date(application.visa_approved_at) : null;
+                      const today = new Date();
+                      const isOverdue = approvedDate ? (Math.ceil(Math.abs(today.getTime() - approvedDate.getTime()) / (1000 * 60 * 60 * 24)) > deadlineDays) : false;
+
+                      if (isPlatform) {
+                        return (
+                          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center gap-3 text-indigo-700">
+                            <Building2 size={20} />
+                            <span className="text-sm font-bold">Payment Managed by Birley Platform</span>
+                          </div>
+                        );
+                      }
+
+                      if (!isSplit) {
+                        return (
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3 text-emerald-700">
+                            <CheckCircle2 size={20} />
+                            <span className="text-sm font-bold">Payment Up to Date (100% Upfront)</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className={`${isOverdue ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'} border rounded-2xl p-5 mb-4`}>
+                          <div className="flex items-start gap-3 mb-4">
+                            <AlertCircle size={20} className={`${isOverdue ? 'text-red-500' : 'text-amber-500'} shrink-0 mt-0.5`} />
+                            <div>
+                              <h4 className={`text-sm font-bold ${isOverdue ? 'text-red-900' : 'text-amber-900'}`}>
+                                {isOverdue ? '2nd Payment OVERDUE' : '2nd Payment Required'}
+                              </h4>
+                              <p className={`text-xs ${isOverdue ? 'text-red-700' : 'text-amber-700'} mt-1`}>
+                                Visa was approved on {approvedDate?.toLocaleDateString()}. 
+                                {isOverdue ? ` Deadline was ${deadlineDays} days after approval.` : ` Please complete payment within ${deadlineDays} days.`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => {
+                                // Simulate generating link
+                                const link = `https://birley.platform/pay/${application.id}/part2`;
+                                navigator.clipboard.writeText(link);
+                                alert('Second payment link generated and copied to clipboard!');
+                              }}
+                              className={`flex-1 flex items-center justify-center gap-2 ${isOverdue ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-200'} text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm`}
+                            >
+                              Generate 2nd Payment Link
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : application.status === 'Accepted' || application.status === 'Approved' || application.status === 'Waiting payment' ? (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+                      <button className="flex-1 flex items-center justify-center gap-2 bg-[#4338CA] text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors">
+                        Pay Initial Fee
+                      </button>
+                      <button 
+                        onClick={handleCopyLink} 
+                        title="Copy payment link"
+                        className="p-2.5 text-gray-400 hover:text-[#4338CA] bg-gray-50 rounded-xl transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3 text-emerald-700">
+                      <CheckCircle2 size={20} />
+                      <span className="text-sm font-bold">Payment Up to Date</span>
+                    </div>
+                  )}
                 </section>
               )}
             </div>

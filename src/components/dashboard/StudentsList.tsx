@@ -20,7 +20,10 @@ import { Student, UserProfile, StudentStatus } from '../../types';
 import AddStudentForm from './AddStudentForm';
 import ProgramMatcher from './ProgramMatcher';
 import StudentKanban from './StudentKanban';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
+import { getNames } from 'country-list';
+import { SPECIALIZATIONS } from '../../constants/specializations';
 
 interface StudentsListProps {
   setActiveTab: (tab: string) => void;
@@ -31,13 +34,15 @@ interface StudentsListProps {
 
 const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedStudentId, setIsEditingStudent, user }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentForMatching, setStudentForMatching] = useState<any>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('kanban');
 
   useEffect(() => {
     fetchStudents();
@@ -238,7 +243,7 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
               className="w-full pl-12 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:bg-white focus:border-brand transition-all outline-none text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative">
             <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1 mr-2">
               <button 
                 onClick={() => setViewMode('table')}
@@ -253,7 +258,10 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
                 <LayoutGrid size={18} />
               </button>
             </div>
-            <button className="p-2.5 text-gray-500 hover:bg-gray-50 bg-white rounded-xl transition-all border border-gray-200">
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className={`p-2.5 rounded-xl transition-all border ${Object.keys(activeFilters).length > 0 ? 'bg-brand/5 border-brand/20 text-brand' : 'text-gray-500 hover:bg-gray-50 bg-white border-gray-200'}`}
+            >
               <Filter size={18} />
             </button>
           </div>
@@ -272,11 +280,22 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {students.filter(s => 
-                  s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                  s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  s.program.toLowerCase().includes(searchTerm.toLowerCase())
-                ).map((student) => (
+                {students.filter(s => {
+                  const matchesSearch = 
+                    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    s.program?.toLowerCase().includes(searchTerm.toLowerCase());
+                  
+                  const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+                    if (!value) return true;
+                    if (key === 'status') return s.status === value;
+                    if (key === 'program') return s.program?.toLowerCase().includes(value.toLowerCase());
+                    if (key === 'country') return s.country?.toLowerCase().includes(value.toLowerCase());
+                    return true;
+                  });
+
+                  return matchesSearch && matchesFilters;
+                }).map((student) => (
                   <tr 
                     key={student.id} 
                     className="hover:bg-gray-50 transition-colors group cursor-pointer"
@@ -371,11 +390,22 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
           </div>
         ) : (
           <StudentKanban 
-            students={students.filter(s => 
-              s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-              s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              s.program.toLowerCase().includes(searchTerm.toLowerCase())
-            )}
+            students={students.filter(s => {
+              const matchesSearch = 
+                s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                s.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                s.program?.toLowerCase().includes(searchTerm.toLowerCase());
+              
+              const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+                if (!value) return true;
+                if (key === 'status') return s.status === value;
+                if (key === 'program') return s.program?.toLowerCase().includes(value.toLowerCase());
+                if (key === 'country') return s.country?.toLowerCase().includes(value.toLowerCase());
+                return true;
+              });
+
+              return matchesSearch && matchesFilters;
+            })}
             onStatusChange={handleStatusChange}
             onStudentClick={(id) => {
               if (setIsEditingStudent) setIsEditingStudent(false);
@@ -410,6 +440,18 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
           </div>
         </div>
       )}
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['New Student', 'Follow up', 'Ready to apply', 'Application started', 'Action Required', 'Application accepted', 'Waiting payment', 'Payment received', 'Ready for visa', 'Waiting visa', 'Done', 'Refund'] },
+          { key: 'program', label: 'Program', type: 'select', options: Object.keys(SPECIALIZATIONS) },
+          { key: 'country', label: 'Country', type: 'select', options: getNames() }
+        ]}
+      />
     </div>
   );
 };

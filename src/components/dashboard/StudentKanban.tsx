@@ -57,7 +57,7 @@ const StudentKanban: React.FC<StudentKanbanProps> = ({ students, onStatusChange,
                     {column.title}
                   </div>
                   {column.isAutomated && (
-                    <Lock size={12} className="text-gray-400" title="Automated stage" />
+                    <Lock size={12} className="text-gray-400" />
                   )}
                 </div>
                 <span className="text-sm font-bold text-gray-400">{columnStudents.length}</span>

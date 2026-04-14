@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
 import { 
   CheckCircle2, 
@@ -73,7 +74,11 @@ const VerificationRequests: React.FC<{ user: UserProfile }> = ({ user }) => {
       console.log('Attempting update for:', id);
       const { error, data } = await supabase
         .from('profiles')
-        .update({ status: 'ACTIVE', recruiter_commission_rate: Number(commissionRate) })
+        .update({ 
+          status: 'ACTIVE', 
+          recruiter_commission_rate: Number(commissionRate),
+          is_verified: true 
+        })
         .eq('id', id)
         .select();
 
@@ -120,6 +125,9 @@ const VerificationRequests: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
   const filteredRequests = requests.filter(r => {
     // Only show pending requests
     if (r.status !== 'CREATED' && r.status !== 'UNDER_REVIEW') {
@@ -131,7 +139,16 @@ const VerificationRequests: React.FC<{ user: UserProfile }> = ({ user }) => {
     const company = (r.company_name || '').toLowerCase();
     const search = searchTerm.toLowerCase();
     
-    return fullName.includes(search) || email.includes(search) || company.includes(search);
+    const matchesSearch = fullName.includes(search) || email.includes(search) || company.includes(search);
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'status') return r.status === value;
+      if (key === 'country') return r.country?.toLowerCase().includes(value.toLowerCase());
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
   });
 
   if (user.role !== 'admin') {
@@ -240,10 +257,15 @@ const VerificationRequests: React.FC<{ user: UserProfile }> = ({ user }) => {
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-2xl outline-none focus:border-brand transition-all shadow-sm"
             />
           </div>
-          <button className="flex items-center justify-center gap-2 px-6 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm">
-            <Filter size={18} />
-            <span>Filters</span>
-          </button>
+          <div className="flex items-center gap-2 relative">
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className={`flex items-center justify-center gap-2 px-6 py-3 bg-white border rounded-2xl text-sm font-bold transition-all shadow-sm ${Object.keys(activeFilters).length > 0 ? 'border-brand text-brand bg-brand/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Filter size={18} />
+              <span>Filters</span>
+            </button>
+          </div>
         </div>
 
         {/* Requests List */}
@@ -512,6 +534,17 @@ const VerificationRequests: React.FC<{ user: UserProfile }> = ({ user }) => {
           </div>
         )}
       </AnimatePresence>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['CREATED', 'UNDER_REVIEW'] },
+          { key: 'country', label: 'Country', type: 'text' }
+        ]}
+      />
     </div>
   );
 };

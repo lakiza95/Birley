@@ -50,6 +50,7 @@
 | `min_language_score` | `numeric` | Минимальный балл (если сертификат требуется) |
 | `experience_required` | `boolean` | Требуется ли опыт работы |
 | `commission` | `numeric` | Процент комиссии рекрутера (устанавливается админом) |
+| `required_documents` | `text[]` | Список требуемых документов (Passport, Transcript, etc.) |
 | `status` | `text` | Статус: `'Pending'`, `'Active'`, `'Rejected'` |
 
 ## 4. Таблица `students`

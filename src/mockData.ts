@@ -7,7 +7,7 @@ export const mockStudents: Student[] = [
     email: 'ana.sousa@example.com',
     country: 'Portugal',
     program: 'BSc Management',
-    status: 'Applied',
+    status: 'Application started',
     avatar: 'https://i.pravatar.cc/150?u=ana',
     documents: [
       { name: 'Passport', status: 'uploaded' },
@@ -28,7 +28,7 @@ export const mockStudents: Student[] = [
     email: 'carlos.lima@example.com',
     country: 'Brazil',
     program: 'MSc Data Science',
-    status: 'Applied',
+    status: 'Application started',
     avatar: 'https://i.pravatar.cc/150?u=carlos',
     documents: [
       { name: 'Passport', status: 'uploaded' },
@@ -48,7 +48,7 @@ export const mockStudents: Student[] = [
     email: 'sofia.martins@example.com',
     country: 'Portugal',
     program: 'BSc Economics',
-    status: 'Enrolled',
+    status: 'Done',
     avatar: 'https://i.pravatar.cc/150?u=sofia',
     documents: [
       { name: 'Passport', status: 'uploaded' },

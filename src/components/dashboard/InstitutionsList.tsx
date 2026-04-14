@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Search, Filter, MoreVertical, CheckCircle2, Clock, AlertCircle, Plus, Trash2, Edit2, ArrowRight, AlertTriangle } from 'lucide-react';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
+import { getNames } from 'country-list';
 import AddInstitutionForm from './AddInstitutionForm';
 import UniversityCard from './UniversityCard';
 import ProgramsList from './ProgramsList';
@@ -16,6 +18,8 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'institutions' | 'programs' | 'sla'>('institutions');
@@ -94,11 +98,22 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
     }
   };
 
-  const filteredInstitutions = institutions.filter(inst => 
-    inst.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (inst.country || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (inst.city || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredInstitutions = institutions.filter(inst => {
+    const matchesSearch = 
+      inst.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (inst.country || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (inst.city || '')?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'status') return inst.status === value;
+      if (key === 'country') return inst.country?.toLowerCase().includes(value.toLowerCase());
+      if (key === 'city') return inst.city?.toLowerCase().includes(value.toLowerCase());
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
+  });
 
   const slaViolators = institutions.filter(inst => inst.overdueCount > 0).sort((a, b) => b.overdueCount - a.overdueCount);
 
@@ -288,8 +303,11 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
                     className="w-full pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg focus:border-[#4338CA] transition-colors outline-none text-xs shadow-sm"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <button className="p-1.5 text-gray-500 hover:bg-gray-50 bg-white rounded-xl transition-colors border border-gray-200 shadow-sm">
+                <div className="flex items-center gap-2 relative">
+                  <button 
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className={`p-1.5 rounded-xl transition-colors border shadow-sm ${Object.keys(activeFilters).length > 0 ? 'bg-[#4338CA]/5 border-[#4338CA]/20 text-[#4338CA]' : 'text-gray-500 hover:bg-gray-50 bg-white border-gray-200'}`}
+                  >
                     <Filter size={16} />
                   </button>
                 </div>
@@ -391,6 +409,18 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={fetchInstitutions}
+      />
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['Active', 'Pending', 'Suspended'] },
+          { key: 'country', label: 'Country', type: 'select', options: getNames() },
+          { key: 'city', label: 'City', type: 'text' }
+        ]}
       />
     </div>
   );

@@ -198,11 +198,6 @@ const Header: React.FC<HeaderProps> = ({ user, setActiveTab, onRefreshProfile })
                     label="Settings" 
                     onClick={() => handleTabClick('settings')}
                   />
-                  <DropdownItem 
-                    icon={<Shield size={16} />} 
-                    label="Security" 
-                    onClick={() => handleTabClick('security')}
-                  />
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-gray-50 px-2">

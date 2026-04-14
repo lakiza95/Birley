@@ -7,7 +7,8 @@ import {
   Filter, 
   ArrowRight,
   Building2,
-  Plus
+  Plus,
+  AlertTriangle
 } from 'lucide-react';
 import UniversityCard from './UniversityCard';
 import ProgramsList from './ProgramsList';
@@ -16,6 +17,9 @@ import { supabase } from '../../supabase';
 import AddInstitutionForm from './AddInstitutionForm';
 
 import { UserProfile } from '../../types';
+
+import { FilterModal } from './FilterModal';
+import { getNames } from 'country-list';
 
 interface CatalogProps {
   user: UserProfile;
@@ -28,6 +32,9 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'institutions' | 'programs'>('institutions');
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSchools();
@@ -64,10 +71,30 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
     }
   };
 
-  const filteredSchools = schools.filter(school => 
-    school.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    school.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleProgramSelect = (program: any) => {
+    const school = schools.find(s => s.id === program.institution_id);
+    if (school) {
+      setSelectedSchool(school);
+      setSelectedProgramId(program.id);
+    }
+  };
+
+  const filteredSchools = schools.filter(school => {
+    const matchesSearch = 
+      school.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      school.location?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'country') return school.location?.toLowerCase().includes(value.toLowerCase());
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
+  });
+
+  const isUnverifiedRecruiter = user.role === 'partner' && !user.is_verified;
+  const displaySchools = isUnverifiedRecruiter ? filteredSchools.slice(0, 3) : filteredSchools;
 
   return (
     <div className="space-y-4">
@@ -102,7 +129,11 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
             key="details"
             school={selectedSchool} 
             user={user}
-            onClose={() => setSelectedSchool(null)} 
+            onClose={() => {
+              setSelectedSchool(null);
+              setSelectedProgramId(null);
+            }} 
+            initialSelectedProgramId={selectedProgramId || undefined}
           />
         ) : activeTab === 'programs' ? (
           <motion.div
@@ -111,7 +142,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            <ProgramsList user={user} />
+            <ProgramsList user={user} onProgramSelect={handleProgramSelect} />
           </motion.div>
         ) : (
           <motion.div 
@@ -126,13 +157,22 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                 <h1 className="text-xl font-bold text-gray-900">Institution Catalog</h1>
                 <p className="text-xs text-gray-500">Explore and compare the best educational institutions around the world.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                  <Filter size={16} />
-                  <span>Advanced Filters</span>
-                </button>
-              </div>
             </div>
+
+            {isUnverifiedRecruiter && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">Verification Required</h3>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    As an unverified recruiter, you can only see up to 3 institutions. 
+                    Please complete your profile verification to unlock the full catalog.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="relative flex-1 max-w-md">
@@ -146,7 +186,10 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-1.5 text-gray-500 hover:bg-gray-50 bg-white rounded-lg transition-colors border border-gray-200">
+                <button 
+                  onClick={() => setIsFilterModalOpen(true)}
+                  className={`p-1.5 rounded-lg transition-colors border ${Object.keys(activeFilters).length > 0 ? 'bg-blue-50 border-blue-200 text-blue-600' : 'text-gray-500 hover:bg-gray-50 bg-white border-gray-200'}`}
+                >
                   <Filter size={16} />
                 </button>
               </div>
@@ -164,7 +207,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                   No institutions found matching your search.
                 </div>
               ) : (
-                filteredSchools.map((school) => (
+                displaySchools.map((school) => (
                   <div 
                     key={school.id} 
                     onClick={() => setSelectedSchool(school)}
@@ -222,6 +265,16 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={fetchSchools}
+      />
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'country', label: 'Country', type: 'select', options: getNames() }
+        ]}
       />
     </div>
   );

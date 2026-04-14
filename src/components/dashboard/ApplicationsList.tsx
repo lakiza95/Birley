@@ -17,7 +17,9 @@ import {
 import ApplicationCard from './ApplicationCard';
 import ApplicationKanban from './ApplicationKanban';
 import { motion, AnimatePresence } from 'motion/react';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
+import { SPECIALIZATIONS } from '../../constants/specializations';
 
 import { UserProfile, ApplicationStatus } from '../../types';
 
@@ -39,13 +41,15 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
   setSelectedChatId
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [applications, setApplications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecruiter, setSelectedRecruiter] = useState<any>(null);
   const [recruiterStats, setRecruiterStats] = useState<any>(null);
   const [isRecruiterLoading, setIsRecruiterLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>(user.role === 'institution' ? 'kanban' : 'table');
 
   useEffect(() => {
     fetchApplications();
@@ -53,14 +57,19 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
 
   const handleStatusChange = async (applicationId: string, newStatus: ApplicationStatus) => {
     try {
+      const updateData: any = { status: newStatus };
+      if (newStatus === 'Visa Approved') {
+        updateData.visa_approved_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('applications')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', applicationId);
 
       if (error) throw error;
       
-      setApplications(prev => prev.map(a => a.db_id === applicationId ? { ...a, status: newStatus } : a));
+      setApplications(prev => prev.map(a => a.db_id === applicationId ? { ...a, ...updateData } : a));
       // Note: The trigger in Supabase will automatically update the student status
     } catch (err) {
       console.error('Error updating application status:', err);
@@ -127,7 +136,7 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
           programs (
             name,
             institution_id,
-            institutions (name)
+            institutions (name, payment_model, first_payment_percent, second_payment_deadline_days)
           ),
           recruiter:profiles!recruiter_id (id, first_name, last_name, email, agency, country, city, phone, whatsapp, bio, is_verified)
         `);
@@ -243,12 +252,23 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
     }
   };
 
-  const filteredApplications = applications.filter(app => 
-    app.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.institution.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.program.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredApplications = applications.filter(app => {
+    const matchesSearch = 
+      app.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      app.student?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      app.institution?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      app.program?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'status') return app.status === value;
+      if (key === 'institution') return app.institution?.toLowerCase().includes(value.toLowerCase());
+      if (key === 'program') return app.program?.toLowerCase().includes(value.toLowerCase());
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
+  });
   
   console.log('Rendering ApplicationsList. Applications:', applications.length, 'Filtered:', filteredApplications.length);
 
@@ -269,20 +289,22 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
                 <p className="text-[10px] text-gray-500">Track and manage all student applications to institutions.</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
-                  <button 
-                    onClick={() => setViewMode('table')}
-                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-[#4338CA] text-white' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    <ListIcon size={14} />
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('kanban')}
-                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'kanban' ? 'bg-[#4338CA] text-white' : 'text-gray-400 hover:text-gray-600'}`}
-                  >
-                    <LayoutGrid size={14} />
-                  </button>
-                </div>
+                {user.role !== 'partner' && (
+                  <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
+                    <button 
+                      onClick={() => setViewMode('table')}
+                      className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-[#4338CA] text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      <ListIcon size={14} />
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('kanban')}
+                      className={`p-1.5 rounded-lg transition-all ${viewMode === 'kanban' ? 'bg-[#4338CA] text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      <LayoutGrid size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -297,6 +319,14 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg focus:border-[#4338CA] transition-colors outline-none text-[11px]"
                   />
+                </div>
+                <div className="flex items-center gap-2 relative">
+                  <button 
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className={`p-1.5 rounded-lg transition-all border ${Object.keys(activeFilters).length > 0 ? 'bg-[#4338CA]/5 border-[#4338CA]/20 text-[#4338CA]' : 'text-gray-500 hover:bg-gray-50 bg-white border-gray-200'}`}
+                  >
+                    <Filter size={14} />
+                  </button>
                 </div>
               </div>
 
@@ -324,68 +354,74 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
                           </td>
                         </tr>
                       ) : (
-                        filteredApplications.map((app) => (
-                          <tr 
-                            key={app.id} 
-                            onClick={() => setSelectedApp(app)}
-                            className="hover:bg-gray-50 transition-colors group cursor-pointer"
-                          >
-                          <td className="py-2.5">
-                            <span className="text-[9px] font-bold text-[#4338CA] bg-indigo-50 px-1.5 py-0.5 rounded-md">
-                              {app.id}
-                            </span>
-                          </td>
-                          <td className="py-2.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-[9px]">
-                                {app.student.split(' ').map((n: string) => n[0]).join('')}
-                              </div>
-                              <div>
-                                <p className="text-[11px] font-bold text-gray-900 leading-tight">{app.student}</p>
-                                <p className="text-[9px] text-gray-400 font-medium uppercase tracking-wider">{app.date}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-2.5">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700">
-                                <Building2 size={11} className="text-gray-400" />
-                                <span>{app.institution}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
-                                <GraduationCap size={9} className="text-gray-400" />
-                                <span>{app.program}</span>
-                              </div>
-                            </div>
-                          </td>
-                          {(user.role === 'admin' || user.role === 'institution') && (
+                        filteredApplications.map((app) => {
+                          const inst = app.programs?.institutions;
+                          const isSplit = inst?.payment_model === 'split_payment';
+                          const deadlineDays = inst?.second_payment_deadline_days || 5;
+                          const approvedDate = app.visa_approved_at ? new Date(app.visa_approved_at) : null;
+                          const today = new Date();
+                          const isOverdue = app.status === 'Visa Approved' && isSplit && approvedDate ? (Math.ceil(Math.abs(today.getTime() - approvedDate.getTime()) / (1000 * 60 * 60 * 24)) > deadlineDays) : false;
+
+                          return (
+                            <tr 
+                              key={app.id} 
+                              onClick={() => setSelectedApp(app)}
+                              className={`hover:bg-gray-50 transition-colors group cursor-pointer ${isOverdue ? 'bg-red-50/30' : ''}`}
+                            >
                             <td className="py-2.5">
-                              {app.recruiter ? (
-                                <button 
-                                  onClick={(e) => handleRecruiterClick(e, app.recruiter)}
-                                  className="flex items-center gap-2 hover:text-[#4338CA] transition-colors group/rec"
-                                >
-                                  <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-[#4338CA] font-bold text-[9px] group-hover/rec:bg-indigo-100">
-                                    {app.recruiter.name.split(' ').map((n: string) => n[0]).join('')}
-                                  </div>
-                                  <div className="text-left">
-                                    <p className="text-[11px] font-bold leading-tight">{app.recruiter.name}</p>
-                                    <p className="text-[9px] text-gray-400 font-medium">{app.recruiter.agency || 'Independent'}</p>
-                                  </div>
-                                </button>
-                              ) : (
-                                <span className="text-[11px] text-gray-400">—</span>
-                              )}
+                              <span className="text-[9px] font-bold text-[#4338CA] bg-indigo-50 px-1.5 py-0.5 rounded-md">
+                                {app.id}
+                              </span>
                             </td>
-                          )}
-                          <td className="py-2.5">
-                            <StatusBadge status={app.status} />
-                          </td>
-                          <td className="py-2.5 text-right text-gray-300">
-                            <ArrowRight size={14} className="ml-auto group-hover:text-[#4338CA] transition-colors" />
-                          </td>
-                        </tr>
-                      ))
+                            <td className="py-2.5">
+                              <div className="flex items-center gap-2">
+                                <div>
+                                  <p className="text-[11px] font-bold text-gray-900 leading-tight">{app.student}</p>
+                                  <p className="text-[9px] text-gray-400 font-medium uppercase tracking-wider">{app.date}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700">
+                                  <Building2 size={11} className="text-gray-400" />
+                                  <span>{app.institution}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                                  <GraduationCap size={9} className="text-gray-400" />
+                                  <span>{app.program}</span>
+                                </div>
+                              </div>
+                            </td>
+                            {(user.role === 'admin' || user.role === 'institution') && (
+                              <td className="py-2.5">
+                                {app.recruiter ? (
+                                  <button 
+                                    onClick={(e) => handleRecruiterClick(e, app.recruiter)}
+                                    className="flex items-center gap-2 hover:text-[#4338CA] transition-colors group/rec"
+                                  >
+                                    <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-[#4338CA] font-bold text-[9px] group-hover/rec:bg-indigo-100">
+                                      {app.recruiter.name.split(' ').map((n: string) => n[0]).join('')}
+                                    </div>
+                                    <div className="text-left">
+                                      <p className="text-[11px] font-bold leading-tight">{app.recruiter.name}</p>
+                                      <p className="text-[9px] text-gray-400 font-medium">{app.recruiter.agency || 'Independent'}</p>
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-gray-400">—</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="py-2.5">
+                              <StatusBadge status={app.status} isOverdue={isOverdue} />
+                            </td>
+                            <td className="py-2.5 text-right text-gray-300">
+                              <ArrowRight size={14} className="ml-auto group-hover:text-[#4338CA] transition-colors" />
+                            </td>
+                          </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -516,11 +552,23 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['New application', 'In review', 'Action Required', 'Approved', 'Rejected', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Done', 'Refund'] },
+          { key: 'institution', label: 'Institution', type: 'text' },
+          { key: 'program', label: 'Program', type: 'select', options: Object.keys(SPECIALIZATIONS) }
+        ]}
+      />
     </div>
   );
 };
 
-const StatusBadge = ({ status }: { status: string }) => {
+const StatusBadge = ({ status, isOverdue }: { status: string; isOverdue?: boolean }) => {
   const styles: any = {
     'New application': 'bg-gray-50 text-gray-500',
     'In review': 'bg-blue-50 text-blue-600',
@@ -530,6 +578,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     'Waiting payment': 'bg-orange-50 text-orange-600',
     'Payment received': 'bg-teal-50 text-teal-600',
     'Ready for visa': 'bg-cyan-50 text-cyan-600',
+    'Visa Approved': isOverdue ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600',
     'Done': 'bg-green-100 text-green-700',
     'Refund': 'bg-rose-50 text-rose-600',
     // Legacy support
@@ -548,6 +597,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     'Waiting payment': Clock,
     'Payment received': CheckCircle2,
     'Ready for visa': FileText,
+    'Visa Approved': isOverdue ? AlertCircle : CheckCircle2,
     'Done': CheckCircle2,
     'Refund': AlertCircle,
     // Legacy support
@@ -560,9 +610,9 @@ const StatusBadge = ({ status }: { status: string }) => {
   const Icon = icons[status] || Clock;
 
   return (
-    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${styles[status] || 'bg-gray-50 text-gray-500'}`}>
+    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border border-transparent ${styles[status] || 'bg-gray-50 text-gray-500'} ${isOverdue ? 'animate-pulse' : ''}`}>
       <Icon size={10} />
-      <span>{status}</span>
+      <span>{status} {isOverdue && '(OVERDUE)'}</span>
     </div>
   );
 };

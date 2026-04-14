@@ -13,6 +13,7 @@ import {
   List
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
+import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import UserDetail from './UserDetail';
@@ -75,11 +76,24 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.agency?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.agency?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilters = Object.entries(activeFilters).every(([key, value]) => {
+      if (!value) return true;
+      if (key === 'status') return user.status === value;
+      if (key === 'role') return user.role === value;
+      return true;
+    });
+
+    return matchesSearch && matchesFilters;
+  });
 
   if (selectedUserId) {
     return <UserDetail userId={selectedUserId} onBack={() => setSelectedUserId(null)} canEdit={true} />;
@@ -109,10 +123,15 @@ const UserManagement: React.FC = () => {
               <LayoutGrid size={18} />
             </button>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
-            <Filter size={18} />
-            <span>Filter</span>
-          </button>
+          <div className="flex items-center gap-2 relative">
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className={`flex items-center gap-2 px-4 py-2 bg-white border rounded-xl text-sm font-bold transition-all ${Object.keys(activeFilters).length > 0 ? 'border-brand text-brand bg-brand/5' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+            >
+              <Filter size={18} />
+              <span>Filter</span>
+            </button>
+          </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-brand/10">
             <span>Add User</span>
           </button>
@@ -304,6 +323,17 @@ const UserManagement: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        activeFilters={activeFilters}
+        onApply={setActiveFilters}
+        fields={[
+          { key: 'status', label: 'Status', type: 'select', options: ['ACTIVE', 'PENDING', 'SUSPENDED'] },
+          { key: 'role', label: 'Role', type: 'select', options: ['admin', 'partner', 'institution'] }
+        ]}
+      />
     </div>
   );
 };

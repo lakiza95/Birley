@@ -54,15 +54,30 @@ const ApplicationSubmissionForm: React.FC<ApplicationSubmissionFormProps> = ({ s
 
     setIsSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Not authenticated');
+
+      // Check active applications limit
+      const { data: activeApps, error: countError } = await supabase
+        .from('applications')
+        .select('id')
+        .eq('student_id', student.id)
+        .not('status', 'in', '("Rejected","Refund","Done")');
+
+      if (countError) throw countError;
+
+      if (activeApps && activeApps.length >= 5) {
+        alert('This student has reached the maximum limit of 5 active applications. Please wait for current applications to be processed or close them before applying to new programs.');
+        setIsSubmitting(false);
+        return;
+      }
 
       const { error } = await supabase
         .from('applications')
         .insert([{
           student_id: student.id,
           program_id: programId,
-          recruiter_id: user.id,
+          recruiter_id: authUser.id,
           status: 'Under Review',
           notes: notes
         }]);

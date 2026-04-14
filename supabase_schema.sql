@@ -252,6 +252,7 @@ BEGIN
     'city', p.city,
     'agency', p.agency,
     'bio', p.bio,
+    'is_verified', p.is_verified,
     'balance', p.balance,
     'status', p.status,
     'onboarding_completed', p.onboarding_completed,

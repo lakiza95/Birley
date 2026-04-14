@@ -22,13 +22,7 @@ import 'react-phone-input-2/lib/style.css';
 import { getNames } from 'country-list';
 import { useDropzone } from 'react-dropzone';
 import { SPECIALIZATIONS } from '../../constants/specializations';
-
-const DOCUMENT_TYPES = [
-  'Passport', 'Grade 8 Transcript', 'Grade 9 Transcript', 'Grade 10 Transcript', 'Grade 11 Transcript', 'Grade 12 Transcript',
-  'Undergraduate Transcript', 'Postgraduate Transcript', 'Grade 8 Certificate', 'Grade 9 Certificate', 'Grade 10 Certificate',
-  'Grade 11 Certificate', 'Grade 12 Certificate', 'Undergraduate Certificate', 'Postgraduate Certificate',
-  'IELTS', 'TOEFL', 'PTE', 'Duolingo', 'GRE', 'GMAT', 'Resume', 'Statement of Purpose', 'Visa', 'Name Change Document', 'Other'
-];
+import { DOCUMENT_TYPES } from '../../constants/documents';
 
 interface AddStudentFormProps {
   onCancel: () => void;

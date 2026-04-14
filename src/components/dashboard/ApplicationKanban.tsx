@@ -1,7 +1,7 @@
 import React from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { ApplicationStatus } from '../../types';
-import { Lock, Building2, GraduationCap, Calendar, MoreVertical } from 'lucide-react';
+import { Lock, Building2, GraduationCap, Calendar, MoreVertical, AlertCircle } from 'lucide-react';
 
 interface ApplicationKanbanProps {
   applications: any[];
@@ -18,6 +18,7 @@ const COLUMNS: { id: ApplicationStatus; title: string; color: string; isAutomate
   { id: 'Waiting payment', title: 'Waiting payment', color: 'bg-orange-50 text-orange-600', isAutomated: true },
   { id: 'Payment received', title: 'Payment received', color: 'bg-teal-50 text-teal-600', isAutomated: true },
   { id: 'Ready for visa', title: 'Ready for visa', color: 'bg-cyan-50 text-cyan-600', isAutomated: false },
+  { id: 'Visa Approved', title: 'Visa Approved', color: 'bg-indigo-50 text-indigo-600', isAutomated: false },
   { id: 'Done', title: 'Done', color: 'bg-green-100 text-green-700', isAutomated: true },
   { id: 'Refund', title: 'Refund', color: 'bg-rose-50 text-rose-600', isAutomated: false }
 ];
@@ -55,7 +56,7 @@ const ApplicationKanban: React.FC<ApplicationKanbanProps> = ({ applications, onS
                     {column.title}
                   </div>
                   {column.isAutomated && (
-                    <Lock size={12} className="text-gray-400" title="Automated stage" />
+                    <Lock size={12} className="text-gray-400" />
                   )}
                 </div>
                 <span className="text-sm font-bold text-gray-400">{columnApps.length}</span>
@@ -70,56 +71,72 @@ const ApplicationKanban: React.FC<ApplicationKanbanProps> = ({ applications, onS
                       snapshot.isDraggingOver ? 'bg-gray-100/50' : ''
                     }`}
                   >
-                    {columnApps.map((app, index) => (
-                      <Draggable key={app.db_id} draggableId={app.db_id} index={index} isDragDisabled={column.isAutomated}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            onClick={() => onApplicationClick(app.db_id)}
-                            className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm transition-all group ${
-                              column.isAutomated ? 'cursor-pointer opacity-90' : 'cursor-grab hover:shadow-md'
-                            } ${
-                              snapshot.isDragging ? 'shadow-lg ring-2 ring-brand/20 rotate-2 cursor-grabbing' : ''
-                            }`}
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
-                                  {app.studentName?.[0]}
-                                </div>
-                                <div>
-                                  <h4 className="text-sm font-bold text-gray-900 line-clamp-1">{app.studentName}</h4>
-                                  <div className="text-xs text-gray-500">App #{app.id}</div>
-                                </div>
-                              </div>
-                              <button 
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <MoreVertical size={16} />
-                              </button>
-                            </div>
+                    {columnApps.map((app, index) => {
+                      const inst = app.programs?.institutions;
+                      const isSplit = inst?.payment_model === 'split_payment';
+                      const deadlineDays = inst?.second_payment_deadline_days || 5;
+                      const approvedDate = app.visa_approved_at ? new Date(app.visa_approved_at) : null;
+                      const today = new Date();
+                      const isOverdue = app.status === 'Visa Approved' && isSplit && approvedDate ? (Math.ceil(Math.abs(today.getTime() - approvedDate.getTime()) / (1000 * 60 * 60 * 24)) > deadlineDays) : false;
 
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <Building2 size={12} className="text-gray-400 shrink-0" />
-                                <span className="truncate">{app.school}</span>
+                      return (
+                        <Draggable key={app.db_id} draggableId={app.db_id} index={index} isDragDisabled={column.isAutomated}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              onClick={() => onApplicationClick(app.db_id)}
+                              className={`bg-white p-4 rounded-xl border transition-all group ${
+                                isOverdue ? 'border-red-200 shadow-red-50' : 'border-gray-200 shadow-sm'
+                              } ${
+                                column.isAutomated ? 'cursor-pointer opacity-90' : 'cursor-grab hover:shadow-md'
+                              } ${
+                                snapshot.isDragging ? 'shadow-lg ring-2 ring-brand/20 rotate-2 cursor-grabbing' : ''
+                              } ${isOverdue ? 'ring-1 ring-red-500/20' : ''}`}
+                            >
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div>
+                                    <h4 className="text-sm font-bold text-gray-900 line-clamp-1">{app.studentName}</h4>
+                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                      App #{app.id}
+                                      {isOverdue && (
+                                        <span className="flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full animate-pulse">
+                                          <AlertCircle size={10} />
+                                          OVERDUE
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical size={16} />
+                                </button>
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <GraduationCap size={12} className="text-gray-400 shrink-0" />
-                                <span className="truncate">{app.program}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <Calendar size={12} className="text-gray-400 shrink-0" />
-                                <span>{new Date(app.date).toLocaleDateString()}</span>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <Building2 size={12} className="text-gray-400 shrink-0" />
+                                  <span className="truncate">{app.school}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <GraduationCap size={12} className="text-gray-400 shrink-0" />
+                                  <span className="truncate">{app.program}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <Calendar size={12} className="text-gray-400 shrink-0" />
+                                  <span>{new Date(app.date).toLocaleDateString()}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
+                          )}
+                        </Draggable>
+                      );
+                    })}
                     {provided.placeholder}
                   </div>
                 )}

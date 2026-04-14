@@ -26,6 +26,7 @@ export interface UserProfile {
   balance?: number;
   school_commission_rate?: number;
   recruiter_commission_rate?: number;
+  is_verified?: boolean;
   experience?: string;
   markets?: string[];
   studentsPerYear?: string;
@@ -42,11 +43,14 @@ export interface UserProfile {
   referred_by_institution_id?: string;
   timezone?: string;
   name?: string;
+  payment_model?: 'full_upfront' | 'split_payment' | 'platform';
+  first_payment_percent?: number;
+  second_payment_deadline_days?: number;
 }
 
-export type StudentStatus = 'New Student' | 'Follow up' | 'Ready to apply' | 'Application started' | 'Action Required' | 'Application accepted' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Waiting visa' | 'Done' | 'Refund';
+export type StudentStatus = 'New Student' | 'Follow up' | 'Ready to apply' | 'Application started' | 'Action Required' | 'Application accepted' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Waiting visa' | 'Visa Approved' | 'Done' | 'Refund';
 
-export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Done' | 'Refund';
+export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Visa Approved' | 'Done' | 'Refund';
 
 export interface Student {
   id: string;

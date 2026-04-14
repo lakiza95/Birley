@@ -297,6 +297,13 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                       alert('Verification is required to match programs and submit applications. Please go to the "Verification" section.');
                       return;
                     }
+                    
+                    const activeApplicationsCount = applications.filter(app => !['Rejected', 'Refund', 'Done'].includes(app.status)).length;
+                    if (activeApplicationsCount >= 5) {
+                      alert('This student has reached the maximum limit of 5 active applications. Please wait for current applications to be processed or close them before applying to new programs.');
+                      return;
+                    }
+
                     setIsMatchingPrograms(true);
                   }} 
                   className="px-6 py-2.5 bg-[#4338CA] text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"

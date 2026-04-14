@@ -28,14 +28,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../supabase';
 
 import { UserProfile } from '../../types';
+import StudentSelectionModal from './StudentSelectionModal';
 
 interface UniversityCardProps {
   school: any;
   user: UserProfile;
   onClose: () => void;
+  initialSelectedProgramId?: string;
 }
 
-const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }) => {
+const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, initialSelectedProgramId }) => {
   const [programs, setPrograms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
@@ -47,6 +49,7 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }
   const [universityEditFormData, setUniversityEditFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingUniversity, setIsSavingUniversity] = useState(false);
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
   useEffect(() => {
     if (school?.id) {
@@ -70,6 +73,13 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }
 
       if (error) throw error;
       setPrograms(data || []);
+      
+      if (initialSelectedProgramId && data) {
+        const initialProgram = data.find(p => p.id === initialSelectedProgramId);
+        if (initialProgram) {
+          setSelectedProgram(initialProgram);
+        }
+      }
     } catch (err) {
       console.error('Error fetching programs:', err);
     } finally {
@@ -258,21 +268,6 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }
               </button>
             )
           )}
-          {user.role !== 'admin' && (
-            <button 
-              onClick={() => {
-                if (user.status !== 'ACTIVE') {
-                  alert('Verification is required to submit an application. Please go to the "Verification" section.');
-                  return;
-                }
-                alert('Please select a specific program below to start the application process.');
-              }}
-              className="flex items-center gap-1.5 bg-[#4338CA] text-white px-4 py-1.5 rounded-lg font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95"
-            >
-              <Plus size={16} />
-              <span>Submit Application</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -436,16 +431,11 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }
                         alert('Verification is required to submit an application. Please go to the "Verification" section.');
                         return;
                       }
-                      // Find the student detail tab or open a student selection modal
-                      // For now, we'll just show a message or navigate to students
-                      alert('To apply for this program, go to the student\'s profile and select "Search Programs".');
+                      setIsApplyModalOpen(true);
                     }}
-                    className="flex-1 bg-[#4338CA] text-white py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                    className="w-full bg-[#4338CA] text-white py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
                   >
                     Start Application
-                  </button>
-                  <button className="px-8 py-4 border border-gray-200 rounded-2xl font-bold text-sm text-gray-600 hover:bg-gray-50 transition-all">
-                    Download Brochure
                   </button>
                 </div>
               )}
@@ -785,6 +775,15 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose }
           </motion.div>
         )}
       </AnimatePresence>
+
+      {isApplyModalOpen && selectedProgram && (
+        <StudentSelectionModal
+          isOpen={isApplyModalOpen}
+          onClose={() => setIsApplyModalOpen(false)}
+          programId={selectedProgram.id}
+          user={user}
+        />
+      )}
     </motion.div>
   );
 };
