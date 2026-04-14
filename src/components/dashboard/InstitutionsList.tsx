@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Building2, Search, Filter, MoreVertical, CheckCircle2, Clock, AlertCircle, Plus, Trash2, Edit2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { FilterModal } from './FilterModal';
 import { supabase } from '../../supabase';
@@ -15,22 +16,32 @@ interface InstitutionsListProps {
 }
 
 const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
-  const [institutions, setInstitutions] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'institutions' | 'programs' | 'sla'>('institutions');
 
-  useEffect(() => {
-    fetchInstitutions();
-  }, []);
+  // Fetch institutions with optimized bulk queries (fixes N+1)
+  const { data: institutions = [], isLoading } = useQuery({
+    queryKey: ['institutions_with_stats'],
+    queryFn: async () => {
+      // Try using the optimized view first (if migration was run)
+      const { data: viewData, error: viewError } = await supabase
+        .from('vw_institutions_with_stats')
+        .select('*')
+        .order('name', { ascending: true });
 
-  const fetchInstitutions = async () => {
-    setIsLoading(true);
-    try {
+      if (!viewError && viewData) {
+        return viewData;
+      }
+
+      // Fallback: Bulk fetch and aggregate in JS (O(1) network requests instead of O(N))
+      console.warn('Optimized view not found, falling back to bulk aggregation');
+      
       const { data: instData, error: instError } = await supabase
         .from('institutions')
         .select('*')
@@ -38,65 +49,73 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
 
       if (instError) throw instError;
 
-      // Calculate 5 days ago for SLA
       const fiveDaysAgo = new Date();
       fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      const fiveDaysAgoStr = fiveDaysAgo.toISOString();
 
-      // Fetch counts for students, applications, and SLA violations
-      const institutionsWithCounts = await Promise.all((instData || []).map(async (inst) => {
-        // Count students
-        const { count: studentCount } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('institution_id', inst.id)
-          .eq('role', 'student');
+      // Bulk fetch all applications with their program's institution_id
+      const { data: appsData } = await supabase
+        .from('applications')
+        .select(`
+          student_id,
+          status,
+          created_at,
+          programs (
+            institution_id
+          )
+        `);
 
-        // Count applications
-        const { count: appCount } = await supabase
-          .from('applications')
-          .select('*', { count: 'exact', head: true })
-          .eq('institution_id', inst.id);
+      // Aggregate counts in memory
+      const studentSets: Record<string, Set<string>> = {};
+      const appCounts: Record<string, number> = {};
+      const overdueCounts: Record<string, number> = {};
+      
+      appsData?.forEach(a => {
+        const instId = (a.programs as any)?.institution_id;
+        if (instId) {
+          // Track unique students
+          if (!studentSets[instId]) studentSets[instId] = new Set();
+          if (a.student_id) studentSets[instId].add(a.student_id);
 
-        // Count SLA Violations (Applications in 'Submitted' status for > 5 days)
-        const { count: overdueCount } = await supabase
-          .from('applications')
-          .select('*', { count: 'exact', head: true })
-          .eq('institution_id', inst.id)
-          .eq('status', 'Submitted')
-          .lt('created_at', fiveDaysAgo.toISOString());
+          // Track applications
+          appCounts[instId] = (appCounts[instId] || 0) + 1;
+          
+          // Track overdue
+          if (a.status === 'Submitted' && a.created_at < fiveDaysAgoStr) {
+            overdueCounts[instId] = (overdueCounts[instId] || 0) + 1;
+          }
+        }
+      });
 
-        return {
-          ...inst,
-          studentCount: studentCount || 0,
-          applicationCount: appCount || 0,
-          overdueCount: overdueCount || 0
-        };
+      return (instData || []).map(inst => ({
+        ...inst,
+        studentCount: studentSets[inst.id]?.size || 0,
+        applicationCount: appCounts[inst.id] || 0,
+        overdueCount: overdueCounts[inst.id] || 0
       }));
-
-      setInstitutions(institutionsWithCounts);
-    } catch (err) {
-      console.error('Error fetching institutions:', err);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this institution? This action cannot be undone.')) return;
-
-    try {
-      const { error } = await supabase
-        .from('institutions')
-        .delete()
-        .eq('id', id);
-
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('institutions').delete().eq('id', id);
       if (error) throw error;
-      setInstitutions(prev => prev.filter(inst => inst.id !== id));
-    } catch (err) {
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['institutions_with_stats'] });
+    },
+    onError: (err) => {
       console.error('Error deleting institution:', err);
       alert('Failed to delete institution');
     }
+  });
+
+  const handleDelete = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this institution? This action cannot be undone.')) return;
+    deleteMutation.mutate(id);
   };
+
 
   const filteredInstitutions = institutions.filter(inst => {
     const matchesSearch = 
@@ -116,6 +135,13 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
   });
 
   const slaViolators = institutions.filter(inst => inst.overdueCount > 0).sort((a, b) => b.overdueCount - a.overdueCount);
+
+  const handleProgramSelect = (program: any) => {
+    if (program.institutions) {
+      setSelectedInstitution(program.institutions);
+      setSelectedProgramId(program.id);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -166,7 +192,11 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
             key="details"
             school={selectedInstitution}
             user={user}
-            onClose={() => setSelectedInstitution(null)}
+            onClose={() => {
+              setSelectedInstitution(null);
+              setSelectedProgramId(null);
+            }}
+            initialSelectedProgramId={selectedProgramId || undefined}
           />
         ) : activeTab === 'programs' ? (
           <motion.div
@@ -175,7 +205,7 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            <ProgramsList user={user} />
+            <ProgramsList user={user} onProgramSelect={handleProgramSelect} />
           </motion.div>
         ) : activeTab === 'sla' ? (
           <motion.div
@@ -408,7 +438,7 @@ const InstitutionsList: React.FC<InstitutionsListProps> = ({ user }) => {
       <AddInstitutionForm 
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSuccess={fetchInstitutions}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['institutions_with_stats'] })}
       />
 
       <FilterModal

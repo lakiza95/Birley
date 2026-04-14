@@ -22,6 +22,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user }) => {
+  const theme = getRoleTheme(user.role);
   const getNavItems = () => {
     const commonItems = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -75,15 +76,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user }) => {
   const initials = `${firstName?.[0] || ''}${lastName?.[0] || ''}` || user.email[0].toUpperCase();
 
   return (
-    <aside className="w-64 bg-brand text-white flex flex-col h-screen fixed left-0 top-0 z-20">
-      <div className="p-6 flex items-center gap-2">
-        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-          <div className="w-4 h-4 bg-brand rounded-sm transform rotate-45"></div>
+    <aside 
+      className="w-64 flex flex-col h-screen fixed left-0 top-0 z-20 transition-colors duration-500"
+      style={{ backgroundColor: theme.primaryDark }}
+    >
+      <div className="p-8 flex items-center gap-3">
+        <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 shadow-lg">
+          <div className="w-5 h-5 bg-white rounded-lg transform rotate-45 shadow-sm"></div>
         </div>
-        <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">Birley</span>
+        <span className="text-2xl font-black tracking-tighter text-white">Birley</span>
       </div>
 
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
         {navItems.map((item: any) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -91,30 +95,42 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user }) => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
                 isActive 
-                  ? 'bg-white/10 text-white font-medium shadow-sm' 
-                  : 'text-white/70 hover:bg-white/5 hover:text-white'
+                  ? 'bg-white text-gray-900 font-bold shadow-xl shadow-black/10' 
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon size={20} className={isActive ? 'text-white' : 'text-white/70'} />
-              <span>{item.label}</span>
+              <Icon 
+                size={20} 
+                className={`transition-colors duration-300 ${
+                  isActive ? '' : 'group-hover:text-white'
+                }`} 
+                style={{ color: isActive ? theme.primary : undefined }}
+              />
+              <span className="text-sm tracking-tight">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/10 space-y-1">
+      <div className="p-6 border-t border-white/10">
         <button
           onClick={() => setActiveTab('help-center')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
             activeTab === 'help-center' 
-              ? 'bg-white/10 text-white font-medium shadow-sm' 
-              : 'text-white/70 hover:bg-white/5 hover:text-white'
+              ? 'bg-white text-gray-900 font-bold shadow-xl shadow-black/10' 
+              : 'text-white/60 hover:bg-white/10 hover:text-white'
           }`}
         >
-          <LifeBuoy size={20} className={activeTab === 'help-center' ? 'text-white' : 'text-white/70'} />
-          <span>Help Center</span>
+          <LifeBuoy 
+            size={20} 
+            className={`transition-colors duration-300 ${
+              activeTab === 'help-center' ? '' : 'group-hover:text-white'
+            }`}
+            style={{ color: activeTab === 'help-center' ? theme.primary : undefined }}
+          />
+          <span className="text-sm tracking-tight">Help Center</span>
         </button>
       </div>
     </aside>

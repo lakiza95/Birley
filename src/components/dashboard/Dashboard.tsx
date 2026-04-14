@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../../types';
 import { supabase } from '../../supabase';
+import { TransactionLedger } from './TransactionLedger';
 import { 
   Users, 
   FileText, 
@@ -31,6 +32,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }) => {
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRecruiter, setSelectedRecruiter] = useState<any | null>(null);
@@ -49,13 +51,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
         await fetchAdminStats();
       } else if (user.role === 'institution') {
         await fetchInstitutionData();
+        await fetchTransactions();
       } else if (user.role === 'partner') {
         await fetchPartnerStats();
+        await fetchTransactions();
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (err) {
+      console.error('Error fetching transactions:', err);
     }
   };
 
@@ -156,18 +176,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
 
   if (user.role === 'admin') {
     return (
-      <div className="space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Control Center</h1>
-            <p className="text-gray-500">System overview and management dashboard.</p>
+      <div className="space-y-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Admin Control Center</h1>
+            <p className="text-sm text-gray-500 font-medium">System overview and management dashboard.</p>
           </div>
           <button 
             onClick={fetchDashboardData}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 rounded-2xl text-xs font-black text-gray-600 shadow-apple shadow-apple-hover disabled:opacity-50"
           >
-            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             Refresh Data
           </button>
         </div>
@@ -205,37 +225,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
             color="blue" 
             onClick={() => setActiveTab('applications')}
           />
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-apple shadow-apple-hover relative overflow-hidden">
+            <div className="flex items-center justify-between mb-6">
+              <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-2xl flex items-center justify-center border border-purple-100/50 shadow-sm">
                 <CreditCard size={24} />
               </div>
             </div>
-            <p className="text-2xl font-extrabold text-gray-900 mb-1">${balance.toLocaleString('en-US')}</p>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">System Balance</p>
+            <p className="text-3xl font-black text-gray-900 tracking-tighter mb-1">${balance.toLocaleString('en-US')}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">System Balance</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-            <h3 className="text-lg font-bold mb-6">Recent Partner Applications</h3>
-            <div className="space-y-4">
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-apple">
+            <h3 className="text-xl font-black text-gray-900 mb-8 tracking-tight">Recent Partner Applications</h3>
+            <div className="space-y-2">
               {recentActivity.length === 0 ? (
-                <p className="text-sm text-gray-500 py-4 text-center">No partner applications to review.</p>
+                <p className="text-sm text-gray-400 py-12 text-center font-medium italic">No partner applications to review.</p>
               ) : recentActivity.map((partner) => (
-                <div key={partner.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-bold text-indigo-600 shadow-sm">
+                <div key={partner.id} className="flex items-center justify-between p-5 hover:bg-gray-50 rounded-[24px] transition-all group border border-transparent hover:border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center font-black text-indigo-500 shadow-sm group-hover:scale-105 transition-transform">
                       {(clean(partner.first_name)?.[0] || '') + (clean(partner.last_name)?.[0] || '')}
                     </div>
                     <div>
-                      <p className="text-sm font-bold">{clean(partner.first_name)} {clean(partner.last_name)}</p>
-                      <p className="text-xs text-gray-500">{partner.country || 'Unknown'} • {new Date(partner.created_at).toLocaleDateString('en-US')}</p>
+                      <p className="text-sm font-black text-gray-900 leading-tight">{clean(partner.first_name)} {clean(partner.last_name)}</p>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">{partner.country || 'Unknown'} • {new Date(partner.created_at).toLocaleDateString('en-US')}</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => setActiveTab('verification')}
-                    className="text-xs font-bold text-indigo-600 hover:underline"
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 transition-colors"
                   >
                     Review
                   </button>
@@ -244,9 +264,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-            <h3 className="text-lg font-bold mb-6">System Alerts</h3>
-            <div className="space-y-4">
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-apple">
+            <h3 className="text-xl font-black text-gray-900 mb-8 tracking-tight">System Alerts</h3>
+            <div className="space-y-2">
               <AlertItem title="High Server Load" time="10m ago" type="warning" />
               <AlertItem title="New Institution Request" time="45m ago" type="info" />
               <AlertItem title="Database Backup Complete" time="2h ago" type="success" />
@@ -259,18 +279,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
 
   if (user.role === 'institution') {
     return (
-      <div className="space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-bold text-gray-900">Institution Portal</h1>
-            <p className="text-gray-500">Manage your programs and incoming applications.</p>
+      <div className="space-y-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Institution Portal</h1>
+            <p className="text-sm text-gray-500 font-medium">Manage your programs and incoming applications.</p>
           </div>
           <button 
             onClick={fetchDashboardData}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 rounded-2xl text-xs font-black text-gray-600 shadow-apple shadow-apple-hover disabled:opacity-50"
           >
-            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             Refresh Data
           </button>
         </div>
@@ -279,14 +299,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
           <StatCard title="New Applications" value={stats.newApplications || 0} icon={Inbox} trend="Action Required" color="brand" />
           <StatCard title="Active Programs" value={stats.activePrograms || 0} icon={GraduationCap} color="emerald" />
           <StatCard title="Enrollment Rate" value={`${stats.enrollmentRate || 0}%`} icon={TrendingUp} trend="+5%" color="blue" />
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-apple shadow-apple-hover relative overflow-hidden">
+            <div className="flex items-center justify-between mb-6">
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center border border-emerald-100/50 shadow-sm">
                 <CreditCard size={24} />
               </div>
             </div>
-            <p className="text-2xl font-extrabold text-gray-900 mb-1">${balance.toLocaleString('en-US')}</p>
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Available Balance</p>
+            <p className="text-3xl font-black text-gray-900 tracking-tighter mb-1">${balance.toLocaleString('en-US')}</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">Available Balance</p>
           </div>
         </div>
 
@@ -444,18 +464,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
 
   // Default: Partner Dashboard
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold text-gray-900">Partner Dashboard</h1>
-          <p className="text-gray-500">Welcome back, {displayName}! Here's your recruitment overview.</p>
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Partner Dashboard</h1>
+          <p className="text-sm text-gray-500 font-medium">Welcome back, {displayName}! Here's your recruitment overview.</p>
         </div>
         <button 
           onClick={fetchDashboardData}
           disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 rounded-2xl text-xs font-black text-gray-600 shadow-apple shadow-apple-hover disabled:opacity-50"
         >
-          <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           Refresh Data
         </button>
       </div>
@@ -465,14 +485,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
         <StatCard title="Active Applications" value={stats.activeApps || 0} icon={FileText} trend="5 need attention" color="blue" />
         <StatCard title="Successful" value={stats.successful || 0} icon={CheckCircle2} trend="+2 this week" color="emerald" />
         
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+        <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-apple shadow-apple-hover relative overflow-hidden">
+          <div className="flex items-center justify-between mb-6">
+            <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center border border-blue-100/50 shadow-sm">
               <CreditCard size={24} />
             </div>
           </div>
-          <p className="text-2xl font-extrabold text-gray-900 mb-1">${balance.toLocaleString('en-US')}</p>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Available Balance</p>
+          <p className="text-3xl font-black text-gray-900 tracking-tighter mb-1">${balance.toLocaleString('en-US')}</p>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">Available Balance</p>
         </div>
       </div>
 
@@ -526,6 +546,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
           </div>
           <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
         </div>
+        
+        {(user.role === 'partner' || user.role === 'institution') && (
+          <div className="lg:col-span-3">
+            <TransactionLedger transactions={transactions} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -534,38 +560,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
 // Helper Components
 const StatCard = ({ title, value, icon: Icon, trend, color, onClick }: any) => {
   const colorMap: any = {
-    brand: 'bg-brand-light text-brand border border-brand/10',
-    indigo: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
-    emerald: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-    blue: 'bg-blue-50 text-blue-600 border border-blue-100',
-    amber: 'bg-amber-50 text-amber-600 border border-amber-100',
-    purple: 'bg-purple-50 text-purple-600 border border-purple-100',
+    brand: 'bg-blue-50 text-blue-500 border-blue-100/50',
+    indigo: 'bg-indigo-50 text-indigo-500 border-indigo-100/50',
+    emerald: 'bg-emerald-50 text-emerald-500 border-emerald-100/50',
+    blue: 'bg-blue-50 text-blue-500 border-blue-100/50',
+    amber: 'bg-amber-50 text-amber-500 border-amber-100/50',
+    purple: 'bg-purple-50 text-purple-500 border-purple-100/50',
   };
 
   return (
     <div 
       onClick={onClick}
-      className={`bg-white/90 backdrop-blur-sm p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 ${onClick ? 'cursor-pointer' : ''}`}
+      className={`bg-white p-6 rounded-[32px] border border-gray-100 shadow-apple shadow-apple-hover ${onClick ? 'cursor-pointer' : ''}`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 ${colorMap[color]} rounded-2xl flex items-center justify-center`}>
+      <div className="flex items-center justify-between mb-6">
+        <div className={`w-12 h-12 ${colorMap[color]} rounded-2xl flex items-center justify-center border shadow-sm`}>
           <Icon size={24} />
         </div>
         {trend && (
-          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${trend.includes('+') ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider ${trend.includes('+') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
             {trend}
           </span>
         )}
       </div>
-      <p className="text-2xl font-extrabold text-gray-900 mb-1">{value}</p>
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{title}</p>
+      <p className="text-3xl font-black text-gray-900 tracking-tighter mb-1">{value}</p>
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">{title}</p>
     </div>
   );
 };
 
 const ActivityItem = ({ name, action, time, status }: any) => {
   const statusColors: any = {
-    success: 'bg-green-500',
+    success: 'bg-emerald-500',
     info: 'bg-blue-500',
     warning: 'bg-amber-500',
   };
@@ -574,39 +600,39 @@ const ActivityItem = ({ name, action, time, status }: any) => {
   const cleanName = clean(name);
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-colors group">
       <div className="flex items-center gap-4">
         <div className="relative">
-          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center font-bold text-gray-400 text-xs">
+          <div className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center font-black text-gray-400 text-xs shadow-sm group-hover:scale-105 transition-transform">
             {cleanName.split(' ').map((n: any) => n[0]).join('') || '?'}
           </div>
-          <div className={`absolute -bottom-1 -right-1 w-3 h-3 ${statusColors[status]} border-2 border-white rounded-full`}></div>
+          <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 ${statusColors[status]} border-2 border-white rounded-full shadow-sm`}></div>
         </div>
         <div>
-          <p className="text-sm font-bold text-gray-900">{cleanName || 'Unknown'}</p>
-          <p className="text-xs text-gray-500">{action}</p>
+          <p className="text-sm font-black text-gray-900 leading-tight">{cleanName || 'Unknown'}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{action}</p>
         </div>
       </div>
-      <span className="text-xs text-gray-400 font-medium">{time}</span>
+      <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{time}</span>
     </div>
   );
 };
 
 const AlertItem = ({ title, time, type }: any) => {
   const colors: any = {
-    warning: 'text-amber-600 bg-amber-50',
-    info: 'text-blue-600 bg-blue-50',
-    success: 'text-green-600 bg-green-50',
+    warning: 'text-amber-500 bg-amber-50 border-amber-100/50',
+    info: 'text-blue-500 bg-blue-50 border-blue-100/50',
+    success: 'text-emerald-500 bg-emerald-50 border-emerald-100/50',
   };
 
   return (
-    <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colors[type]}`}>
-        <AlertCircle size={16} />
+    <div className="flex items-start gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-all group border border-transparent hover:border-gray-100">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border shadow-sm ${colors[type]}`}>
+        <AlertCircle size={18} />
       </div>
       <div>
-        <p className="text-sm font-bold text-gray-900">{title}</p>
-        <p className="text-[10px] text-gray-400 font-medium">{time}</p>
+        <p className="text-sm font-black text-gray-900 leading-tight group-hover:text-gray-600 transition-colors">{title}</p>
+        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">{time}</p>
       </div>
     </div>
   );

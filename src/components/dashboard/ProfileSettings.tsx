@@ -29,11 +29,15 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
     payment_model: user.payment_model || '100_upfront',
     first_payment_percent: user.first_payment_percent || 100,
     second_payment_deadline_days: user.second_payment_deadline_days || 5,
+    email_notifications: user.email_notifications ?? true,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target as HTMLInputElement;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value 
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +83,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
             country: formData.country,
             city: formData.city,
             bio: formData.bio,
+            email_notifications: formData.email_notifications,
             updated_at: new Date().toISOString(),
           })
           .eq('id', user.id)
@@ -97,6 +102,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
           country: data.country,
           city: data.city,
           bio: data.bio,
+          email_notifications: data.email_notifications,
           balance: data.balance ? Number(data.balance) : 0,
         };
         onUpdate(updatedUser);
@@ -377,6 +383,27 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Preferences</label>
+                <div className="w-full px-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Email Notifications</p>
+                    <p className="text-xs text-gray-500">Receive updates about your applications and payments via email.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="email_notifications"
+                      checked={formData.email_notifications}
+                      onChange={handleChange}
+                      disabled={!isEditing}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#4338CA]"></div>
+                  </label>
+                </div>
+              </div>
             </div>
 
             {isEditing && (

@@ -56,6 +56,12 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
   }, [user]);
 
   const handleStatusChange = async (applicationId: string, newStatus: ApplicationStatus) => {
+    // Restrict recruiters from changing status to anything other than Cancelled
+    if (user.role === 'partner' && newStatus !== 'Cancelled') {
+      alert('Recruiters can only cancel applications.');
+      return;
+    }
+
     try {
       const updateData: any = { status: newStatus };
       if (newStatus === 'Visa Approved') {
@@ -70,9 +76,10 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
       if (error) throw error;
       
       setApplications(prev => prev.map(a => a.db_id === applicationId ? { ...a, ...updateData } : a));
-      // Note: The trigger in Supabase will automatically update the student status
+      // Note: The trigger in Supabase will automatically update the student status and log history
     } catch (err) {
       console.error('Error updating application status:', err);
+      alert('Failed to update application status.');
     }
   };
 

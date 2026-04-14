@@ -47,11 +47,12 @@ export interface UserProfile {
   payment_model?: 'full_upfront' | 'split_payment' | 'platform';
   first_payment_percent?: number;
   second_payment_deadline_days?: number;
+  email_notifications?: boolean;
 }
 
 export type StudentStatus = 'New Student' | 'Follow up' | 'Ready to apply' | 'Application started' | 'Action Required' | 'Application accepted' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Waiting visa' | 'Visa Approved' | 'Done' | 'Refund';
 
-export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Visa Approved' | 'Done' | 'Refund';
+export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Visa Approved' | 'Done' | 'Refund' | 'Cancelled';
 
 export interface Student {
   id: string;

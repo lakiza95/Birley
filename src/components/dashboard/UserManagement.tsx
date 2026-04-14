@@ -154,7 +154,10 @@ const UserManagement: React.FC = () => {
             </button>
           </div>
           <button 
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={(e) => {
+              e.preventDefault();
+              setIsAddModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-brand/10"
           >
             <span>Add User</span>
@@ -229,12 +232,12 @@ const UserManagement: React.FC = () => {
                             {user.role === 'admin' ? (
                               <Shield size={14} className="text-purple-500" />
                             ) : user.role === 'institution' ? (
-                              <BadgeCheck size={14} className="text-blue-500" />
+                              <BadgeCheck size={14} className="text-emerald-500" />
                             ) : (
-                              <UserCheck size={14} className="text-indigo-500" />
+                              <UserCheck size={14} className="text-blue-500" />
                             )}
                             <span className="text-xs font-bold text-gray-700">
-                              {user.role === 'admin' ? 'Admin' : user.role === 'institution' ? 'Institution' : 'Partner'}
+                              {user.role === 'admin' ? 'Admin' : user.role === 'institution' ? 'Institution' : 'Recruiter'}
                             </span>
                           </div>
                         </td>
@@ -331,7 +334,7 @@ const UserManagement: React.FC = () => {
                             <UserCheck size={12} className="text-indigo-500" />
                           )}
                           <span className="text-[10px] font-bold text-gray-700">
-                            {user.role === 'admin' ? 'Admin' : user.role === 'institution' ? 'Institution' : 'Partner'}
+                            {user.role === 'admin' ? 'Admin' : user.role === 'institution' ? 'Institution' : 'Recruiter'}
                           </span>
                         </div>
                       </div>

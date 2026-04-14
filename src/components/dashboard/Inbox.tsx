@@ -448,7 +448,7 @@ const Inbox: React.FC<InboxProps> = ({
                 if (isSystem) {
                   return (
                     <div key={msg.id} className="flex justify-center my-2">
-                      <div className="text-gray-300 text-[9px] font-bold uppercase tracking-widest px-3 py-1 bg-gray-50 rounded-full">
+                      <div className="text-gray-500 text-[9px] font-bold uppercase tracking-widest px-3 py-1 bg-gray-100 rounded-full">
                         {msg.text.replace('__SYSTEM_NOTIFICATION__ ', '').replace('__SYSTEM_NOTIFICATION__', '')}
                       </div>
                     </div>
@@ -466,7 +466,7 @@ const Inbox: React.FC<InboxProps> = ({
                         <p className="text-xs leading-relaxed font-medium">{msg.text}</p>
                       </div>
                       <div className={`flex items-center gap-2 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <span className="text-[8px] font-medium text-gray-300 uppercase">
+                        <span className="text-[8px] font-medium text-gray-400 uppercase">
                           {msg.timestamp}
                         </span>
                       </div>

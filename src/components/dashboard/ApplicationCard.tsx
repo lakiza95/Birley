@@ -202,6 +202,12 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const handleStatusChange = async (newStatus: string) => {
     if (!application.db_id) return;
     
+    // Restrict recruiters from changing status to anything other than Cancelled
+    if (user.role === 'partner' && newStatus !== 'Cancelled') {
+      alert('Recruiters can only cancel applications.');
+      return;
+    }
+    
     if (newStatus === 'Action Required') {
       setIsActionModalOpen(true);
       return;

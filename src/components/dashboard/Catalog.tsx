@@ -72,10 +72,27 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
   };
 
   const handleProgramSelect = (program: any) => {
-    const school = schools.find(s => s.id === program.institution_id);
+    let school = schools.find(s => s.id === program.institution_id);
+    if (!school && program.institutions) {
+      const inst = Array.isArray(program.institutions) ? program.institutions[0] : program.institutions;
+      if (inst) {
+        school = {
+          id: inst.id,
+          name: inst.name,
+          location: inst.country,
+          rating: 4.5,
+          programs: 0,
+          image: inst.logo_url || `https://picsum.photos/seed/${inst.id}/800/400`,
+          tags: []
+        };
+      }
+    }
+    
     if (school) {
       setSelectedSchool(school);
       setSelectedProgramId(program.id);
+    } else {
+      alert('Error: This program is not linked to any institution or institution data is missing.');
     }
   };
 
@@ -93,7 +110,7 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
     return matchesSearch && matchesFilters;
   });
 
-  const isUnverifiedRecruiter = user.role === 'partner' && !user.is_verified;
+  const isUnverifiedRecruiter = user.role === 'partner' && user.status !== 'ACTIVE';
   const displaySchools = isUnverifiedRecruiter ? filteredSchools.slice(0, 3) : filteredSchools;
 
   return (
@@ -195,15 +212,17 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {isLoading ? (
-                <div className="col-span-full py-12 text-center text-sm text-gray-400 font-medium">
-                  <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
+                <div className="col-span-full py-24 text-center text-sm text-gray-400 font-bold">
+                  <div className="w-10 h-10 border-4 border-gray-100 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
                   Loading catalog...
                 </div>
               ) : filteredSchools.length === 0 ? (
-                <div className="col-span-full py-12 text-center text-sm text-gray-400 font-medium">
-                  <Search size={32} className="mx-auto mb-3 text-gray-300" />
+                <div className="col-span-full py-24 text-center text-sm text-gray-400 font-bold">
+                  <div className="w-16 h-16 bg-gray-50 rounded-[24px] flex items-center justify-center mx-auto mb-4">
+                    <Search size={32} className="text-gray-300" />
+                  </div>
                   No institutions found matching your search.
                 </div>
               ) : (
@@ -211,46 +230,46 @@ const Catalog: React.FC<CatalogProps> = ({ user }) => {
                   <div 
                     key={school.id} 
                     onClick={() => setSelectedSchool(school)}
-                    className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-100 transition-all cursor-pointer group flex flex-col"
+                    className="bg-white border border-gray-100 rounded-[32px] overflow-hidden shadow-apple shadow-apple-hover cursor-pointer group flex flex-col"
                   >
-                    <div className="h-32 bg-gray-100 relative overflow-hidden">
+                    <div className="h-40 bg-gray-100 relative overflow-hidden">
                       <img 
                         src={school.image} 
                         alt={school.name} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg text-white text-[10px] font-bold">
-                          <Star size={10} className="text-amber-400 fill-amber-400" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                      <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-xl text-white text-[10px] font-black border border-white/10">
+                          <Star size={12} className="text-amber-400 fill-amber-400" />
                           <span>{school.rating}</span>
                         </div>
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg text-white text-[10px] font-bold">
-                          <BookOpen size={10} />
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-xl text-white text-[10px] font-black border border-white/10">
+                          <BookOpen size={12} />
                           <span>{school.programs} Programs</span>
                         </div>
                       </div>
                     </div>
-                    <div className="p-4 flex flex-col flex-1">
-                      <h3 className="font-bold text-gray-900 text-sm mb-1 group-hover:text-blue-600 transition-colors line-clamp-1">
+                    <div className="p-6 flex flex-col flex-1">
+                      <h3 className="font-black text-gray-900 text-base mb-1 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
                         {school.name}
                       </h3>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3">
-                        <MapPin size={12} className="text-gray-400 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mb-4 font-black uppercase tracking-widest">
+                        <MapPin size={12} className="text-gray-300 shrink-0" />
                         <span className="truncate">{school.location}</span>
                       </div>
-                      <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
-                        <div className="flex gap-1">
+                      <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                        <div className="flex gap-1.5">
                           {school.tags?.slice(0, 2).map((tag: string, i: number) => (
-                            <span key={i} className="text-[9px] font-bold uppercase tracking-wider bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-md">
+                            <span key={i} className="text-[9px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 px-2 py-1 rounded-lg">
                               {tag}
                             </span>
                           ))}
                         </div>
-                        <button className="text-[10px] font-bold text-blue-600 flex items-center gap-1 group-hover:gap-1.5 transition-all">
-                          Details <ArrowRight size={10} />
-                        </button>
+                        <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
+                          <ArrowRight size={16} />
+                        </div>
                       </div>
                     </div>
                   </div>

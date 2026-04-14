@@ -17,6 +17,7 @@ import ApplicationsList from './components/dashboard/ApplicationsList';
 import Catalog from './components/dashboard/Catalog';
 import InstitutionsList from './components/dashboard/InstitutionsList';
 import ProgramsList from './components/dashboard/ProgramsList';
+import UniversityCard from './components/dashboard/UniversityCard';
 import SystemSettings from './components/dashboard/SystemSettings';
 import ProfileSettings from './components/dashboard/ProfileSettings';
 import Inbox from './components/dashboard/Inbox';
@@ -41,6 +42,8 @@ const App: React.FC = () => {
   const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isEditingStudent, setIsEditingStudent] = useState(false);
+  const [selectedProgramForCard, setSelectedProgramForCard] = useState<any | null>(null);
+  const [selectedInstitutionForCard, setSelectedInstitutionForCard] = useState<any | null>(null);
 
   // Financial State
   const [balance, setBalance] = useState(0); 
@@ -82,6 +85,29 @@ const App: React.FC = () => {
 
       const methodLabel = method === 'bank_transfer' ? 'Bank Transfer' : method === 'paypal' ? 'PayPal' : 'Crypto Wallet';
 
+      // Try secure RPC first
+      const { data: rpcData, error: rpcError } = await supabase.rpc('request_withdrawal', {
+        p_amount: amount,
+        p_method: methodLabel
+      });
+
+      if (!rpcError && rpcData?.success) {
+        // RPC succeeded
+        const newWithdrawal = {
+          id: `WD-${rpcData.withdrawal_id.slice(0, 4).toUpperCase()}`,
+          amount: amount,
+          method: methodLabel,
+          status: 'pending',
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        };
+        setWithdrawals([newWithdrawal, ...withdrawals]);
+        setBalance(rpcData.new_balance);
+        return;
+      }
+
+      // Fallback if RPC doesn't exist (e.g., migration not run)
+      console.warn('Secure RPC failed or not found, falling back to client-side update', rpcError);
+      
       const { data, error } = await supabase
         .from('withdrawals')
         .insert([{
@@ -115,6 +141,7 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Error creating withdrawal:', err);
+      alert('Failed to process withdrawal. Please try again.');
     }
   };
 
@@ -346,7 +373,34 @@ const App: React.FC = () => {
       case 'verification':
         return user?.role === 'admin' ? <VerificationRequests user={user!} /> : <RecruiterVerification user={user!} onRefreshProfile={refreshProfile} />;
       case 'programs':
-        return <ProgramsList user={user!} />;
+        if (selectedProgramForCard && selectedInstitutionForCard) {
+          return (
+            <UniversityCard 
+              school={selectedInstitutionForCard}
+              user={user!}
+              onClose={() => {
+                setSelectedProgramForCard(null);
+                setSelectedInstitutionForCard(null);
+              }}
+              initialSelectedProgramId={selectedProgramForCard.id}
+            />
+          );
+        }
+        return (
+          <ProgramsList 
+            user={user!} 
+            onProgramSelect={(prog) => {
+              const institution = Array.isArray(prog.institutions) ? prog.institutions[0] : prog.institutions;
+              console.log('DEBUG: Program selected:', prog.id, 'Institution:', institution?.id);
+              if (!institution) {
+                alert('Error: This program is not linked to any institution or institution data is missing.');
+                return;
+              }
+              setSelectedProgramForCard(prog);
+              setSelectedInstitutionForCard(institution);
+            }} 
+          />
+        );
       case 'settings':
         return <SystemSettings user={user!} />;
       case 'profile':

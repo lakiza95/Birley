@@ -22,13 +22,17 @@ import {
   Clock,
   Save,
   User,
-  Upload
+  Upload,
+  FileText,
+  Languages,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../supabase';
 
 import { UserProfile } from '../../types';
 import StudentSelectionModal from './StudentSelectionModal';
+import ProgramModal from './ProgramModal';
 
 interface UniversityCardProps {
   school: any;
@@ -41,13 +45,11 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
   const [programs, setPrograms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProgram, setSelectedProgram] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
   const [isEditingUniversity, setIsEditingUniversity] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [editFormData, setEditFormData] = useState<any>(null);
   const [universityEditFormData, setUniversityEditFormData] = useState<any>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isSavingUniversity, setIsSavingUniversity] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
@@ -88,8 +90,7 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
   };
 
   const handleEdit = () => {
-    setEditFormData({ ...selectedProgram });
-    setIsEditing(true);
+    setIsProgramModalOpen(true);
   };
 
   const handleEditUniversity = () => {
@@ -194,37 +195,6 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
     }
   };
 
-  const handleSave = async () => {
-    if (!editFormData) return;
-    setIsSaving(true);
-    try {
-      const { error } = await supabase
-        .from('programs')
-        .update({
-          name: editFormData.name,
-          level: editFormData.level,
-          duration: editFormData.duration,
-          intake: editFormData.intake,
-          tuition_fee: parseFloat(editFormData.tuition_fee) || 0,
-          currency: editFormData.currency,
-          vacancies: parseInt(editFormData.vacancies) || 0,
-          description: editFormData.description
-        })
-        .eq('id', selectedProgram.id);
-
-      if (error) throw error;
-      
-      setSelectedProgram({ ...editFormData });
-      setIsEditing(false);
-      fetchPrograms();
-    } catch (err) {
-      console.error('Error saving program:', err);
-      alert('Failed to save program changes.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   if (!school) return null;
 
   return (
@@ -237,7 +207,7 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
       {/* Header / Navigation */}
       <div className="flex items-center justify-between">
         <button 
-          onClick={selectedProgram ? () => { setSelectedProgram(null); setIsEditing(false); } : onClose}
+          onClick={selectedProgram ? () => { setSelectedProgram(null); } : onClose}
           className="flex items-center gap-2 text-gray-500 hover:text-[#4338CA] font-bold transition-colors group"
         >
           <div className="w-7 h-7 rounded-lg bg-white border border-gray-100 flex items-center justify-center group-hover:border-indigo-100 shadow-sm">
@@ -250,12 +220,11 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
           {user.role === 'admin' && (
             selectedProgram ? (
               <button 
-                onClick={isEditing ? handleSave : handleEdit}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 bg-[#4338CA] text-white px-4 py-1.5 rounded-lg font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95 disabled:opacity-50"
+                onClick={handleEdit}
+                className="flex items-center gap-1.5 bg-[#4338CA] text-white px-4 py-1.5 rounded-lg font-bold text-xs hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95"
               >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : (isEditing ? <Save size={16} /> : <Plus size={16} />)}
-                <span>{isEditing ? 'Save Changes' : 'Edit'}</span>
+                <Plus size={16} />
+                <span>Edit Program</span>
               </button>
             ) : (
               <button 
@@ -280,166 +249,188 @@ const UniversityCard: React.FC<UniversityCardProps> = ({ school, user, onClose, 
             exit={{ opacity: 0, x: -20 }}
             className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden p-8"
           >
-            <div className="max-w-3xl mx-auto space-y-8">
+            <div className="max-w-4xl mx-auto space-y-8">
               <div className="flex items-start justify-between">
                 <div className="flex-1 mr-4">
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Program Name</label>
-                        <input 
-                          type="text"
-                          value={editFormData.name}
-                          onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand transition-colors font-bold text-xl"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Level</label>
-                        <input 
-                          type="text"
-                          value={editFormData.level}
-                          onChange={(e) => setEditFormData({ ...editFormData, level: e.target.value })}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand transition-colors text-xs font-bold"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-[10px] font-bold text-brand bg-brand/10 px-3 py-1 rounded-full uppercase tracking-widest mb-4 inline-block">
-                        {selectedProgram.level}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-[10px] font-bold text-brand bg-brand/10 px-3 py-1 rounded-full uppercase tracking-widest">
+                      {selectedProgram.level}
+                    </span>
+                    {selectedProgram.visa_suitability && (
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full uppercase tracking-widest border border-amber-100">
+                        {selectedProgram.visa_suitability}
                       </span>
-                      <h1 className="text-3xl font-bold text-gray-900 leading-tight">{selectedProgram.name}</h1>
-                    </>
+                    )}
+                  </div>
+                  <h1 className="text-3xl font-black text-gray-900 leading-tight tracking-tight">{selectedProgram.name}</h1>
+                  {selectedProgram.specialization && (
+                    <p className="text-sm font-bold text-gray-400 mt-1 uppercase tracking-wider">
+                      {Array.isArray(selectedProgram.specialization) ? selectedProgram.specialization.join(', ') : selectedProgram.specialization}
+                    </p>
                   )}
                 </div>
                 <div className="text-right">
-                  {isEditing ? (
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cost</label>
-                      <input 
-                        type="number"
-                        value={editFormData.tuition_fee}
-                        onChange={(e) => setEditFormData({ ...editFormData, tuition_fee: e.target.value })}
-                        className="w-32 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand transition-colors font-bold text-right"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-end">
-                      <p className="text-2xl font-bold text-gray-900">
-                        {selectedProgram.tuition_fee ? `$${selectedProgram.tuition_fee.toLocaleString('en-US')}` : 'On request'}
-                      </p>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Cost per year</p>
-                      {selectedProgram.commission > 0 && (
-                        <div className="mt-2 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-100 flex items-center gap-1">
-                          <span>{selectedProgram.commission}% Commission</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex flex-col items-end">
+                    <p className="text-3xl font-black text-gray-900">
+                      {selectedProgram.tuition_fee ? `${selectedProgram.tuition_fee.toLocaleString('en-US')} ${selectedProgram.currency || 'EUR'}` : 'On request'}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Tuition Fee per year</p>
+                    {selectedProgram.commission > 0 && (
+                      <div className="mt-3 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-xs font-black border border-emerald-100 flex items-center gap-1 shadow-sm">
+                        <span>{selectedProgram.commission}% Commission</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-8 border-y border-gray-50">
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Duration</p>
-                  <div className="flex items-center gap-2 text-gray-900 font-bold">
+                  <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
                     <Clock size={16} className="text-brand" />
-                    {isEditing ? (
-                      <input 
-                        type="text"
-                        value={editFormData.duration}
-                        onChange={(e) => setEditFormData({ ...editFormData, duration: e.target.value })}
-                        className="w-full bg-transparent border-b border-gray-200 outline-none focus:border-brand"
-                      />
-                    ) : (
-                      <span>{selectedProgram.duration}</span>
-                    )}
+                    <span>{selectedProgram.duration}</span>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Start Date</p>
-                  <div className="flex items-center gap-2 text-gray-900 font-bold">
-                    <CheckCircle2 size={16} className="text-brand" />
-                    {isEditing ? (
-                      <input 
-                        type="text"
-                        value={editFormData.intake}
-                        onChange={(e) => setEditFormData({ ...editFormData, intake: e.target.value })}
-                        className="w-full bg-transparent border-b border-gray-200 outline-none focus:border-brand"
-                      />
-                    ) : (
-                      <span>{selectedProgram.intake || 'September'}</span>
-                    )}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Intake</p>
+                  <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
+                    <Calendar size={16} className="text-brand" />
+                    <span>{selectedProgram.intake || 'September'}</span>
                   </div>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Language</p>
+                  <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
+                    <Languages size={16} className="text-brand" />
+                    <span>{selectedProgram.language || 'English'}</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Vacancies</p>
-                  <div className="flex items-center gap-2 text-gray-900 font-bold">
+                  <div className="flex items-center gap-2 text-gray-900 font-bold text-sm">
                     <Users size={16} className="text-brand" />
-                    {isEditing ? (
-                      <input 
-                        type="number"
-                        value={editFormData.vacancies}
-                        onChange={(e) => setEditFormData({ ...editFormData, vacancies: e.target.value })}
-                        className="w-full bg-transparent border-b border-gray-200 outline-none focus:border-brand"
-                      />
-                    ) : (
-                      <span>{selectedProgram.vacancies || '50'} seats</span>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Currency</p>
-                  <div className="flex items-center gap-2 text-gray-900 font-bold">
-                    <Globe size={16} className="text-brand" />
-                    {isEditing ? (
-                      <input 
-                        type="text"
-                        value={editFormData.currency}
-                        onChange={(e) => setEditFormData({ ...editFormData, currency: e.target.value })}
-                        className="w-full bg-transparent border-b border-gray-200 outline-none focus:border-brand"
-                      />
-                    ) : (
-                      <span>{selectedProgram.currency || 'USD'}</span>
-                    )}
+                    <span>{selectedProgram.vacancies || '50'} seats</span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-gray-900">Program Description</h3>
-                {isEditing ? (
-                  <textarea 
-                    value={editFormData.description}
-                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-brand transition-colors text-xs leading-relaxed min-h-[150px] resize-none"
-                    placeholder="Enter program description..."
-                  />
-                ) : (
-                  <p className="text-gray-600 leading-relaxed">
-                    {selectedProgram.description || 'Detailed program description is being populated. Please contact the admissions office for detailed information about courses, requirements, and career prospects.'}
-                  </p>
-                )}
-              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight">Program Description</h3>
+                    <p className="text-gray-600 leading-relaxed text-sm">
+                      {selectedProgram.description || 'Detailed program description is being populated. Please contact the admissions office for detailed information about courses, requirements, and career prospects.'}
+                    </p>
+                  </div>
 
-              {user.role !== 'admin' && (
-                <div className="pt-6 flex gap-4">
-                  <button 
-                    onClick={() => {
-                      if (user.status !== 'ACTIVE') {
-                        alert('Verification is required to submit an application. Please go to the "Verification" section.');
-                        return;
-                      }
-                      setIsApplyModalOpen(true);
-                    }}
-                    className="w-full bg-[#4338CA] text-white py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-                  >
-                    Start Application
-                  </button>
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight">Required Documents</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {selectedProgram.required_documents && selectedProgram.required_documents.length > 0 ? (
+                        selectedProgram.required_documents.map((doc: string, i: number) => (
+                          <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-brand shadow-sm">
+                              <FileText size={16} />
+                            </div>
+                            <span className="text-xs font-bold text-gray-700">{doc}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-400 font-medium italic">Standard document set required.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                <div className="space-y-6">
+                  <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100 space-y-6">
+                    <h3 className="text-sm font-black text-gray-900 tracking-tight uppercase tracking-widest">Requirements</h3>
+                    
+                    <div className="space-y-4">
+                      {(selectedProgram.min_age || selectedProgram.max_age) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500 font-bold">Age Range</span>
+                          <span className="text-xs font-black text-gray-900">
+                            {selectedProgram.min_age || '18'} — {selectedProgram.max_age || '99'} years
+                          </span>
+                        </div>
+                      )}
+                      
+                      {selectedProgram.language_certificate_required && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500 font-bold">Language Cert</span>
+                          <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                            Required {selectedProgram.min_language_score ? `(${selectedProgram.min_language_score}+)` : ''}
+                          </span>
+                        </div>
+                      )}
+
+                      {selectedProgram.experience_required && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500 font-bold">Experience</span>
+                          <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                            Required
+                          </span>
+                        </div>
+                      )}
+
+                      {selectedProgram.enrollment_deadline && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500 font-bold">Deadline</span>
+                          <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">
+                            {new Date(selectedProgram.enrollment_deadline).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedProgram.countries_not_accepted && selectedProgram.countries_not_accepted.length > 0 && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Restricted Countries</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedProgram.countries_not_accepted.map((c: string, i: number) => (
+                            <span key={i} className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {user.role !== 'admin' && (
+                    <button 
+                      onClick={() => {
+                        if (user.status !== 'ACTIVE') {
+                          alert('Verification is required to submit an application. Please go to the "Verification" section.');
+                          return;
+                        }
+                        setIsApplyModalOpen(true);
+                      }}
+                      className="w-full bg-[#4338CA] text-white py-4 rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-[0.98]"
+                    >
+                      Start Application
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
+            
+            <ProgramModal 
+              isOpen={isProgramModalOpen}
+              onClose={() => setIsProgramModalOpen(false)}
+              user={user}
+              program={selectedProgram}
+              institutionId={school.id}
+              onSuccess={() => {
+                fetchPrograms();
+                // Update selected program with new data
+                supabase.from('programs').select('*').eq('id', selectedProgram.id).single().then(({ data }) => {
+                  if (data) setSelectedProgram(data);
+                });
+              }}
+            />
           </motion.div>
         ) : (
           <motion.div
