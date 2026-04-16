@@ -131,10 +131,20 @@ CREATE TABLE IF NOT EXISTS students (
   destination TEXT,
   educationLevel TEXT,
   whatsapp TEXT,
+  main_number TEXT,
+  firstname TEXT,
+  middlename TEXT,
+  lastname TEXT,
+  citizenship TEXT,
   budget NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE students ADD COLUMN IF NOT EXISTS firstname TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS middlename TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS lastname TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS citizenship TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS main_number TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS dob TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS passportNumber TEXT;

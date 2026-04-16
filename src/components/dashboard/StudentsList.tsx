@@ -21,6 +21,7 @@ import AddStudentForm from './AddStudentForm';
 import ProgramMatcher from './ProgramMatcher';
 import StudentKanban from './StudentKanban';
 import { FilterModal } from './FilterModal';
+import StatusWarningModal from './StatusWarningModal';
 import { supabase } from '../../supabase';
 import { getNames } from 'country-list';
 import { SPECIALIZATIONS } from '../../constants/specializations';
@@ -43,6 +44,18 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('kanban');
+  const [warningModal, setWarningModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'incomplete' | 'automated';
+    missingFields?: string[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'incomplete'
+  });
 
   useEffect(() => {
     fetchStudents();
@@ -50,6 +63,79 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
 
   const handleStatusChange = async (studentId: string, newStatus: StudentStatus) => {
     try {
+      const currentStudent = students.find(s => s.id === studentId);
+      const automatedStatuses = ['Application started', 'Action Required', 'Application accepted', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Refund'];
+      
+      if (currentStudent && automatedStatuses.includes(currentStudent.status)) {
+        setWarningModal({
+          isOpen: true,
+          title: 'Automated Stage',
+          message: 'The current stage is managed automatically and cannot be changed manually.',
+          type: 'automated'
+        });
+        return;
+      }
+
+      if (automatedStatuses.includes(newStatus)) {
+        setWarningModal({
+          isOpen: true,
+          title: 'Automated Stage',
+          message: 'This stage is managed automatically by the system and cannot be changed manually.',
+          type: 'automated'
+        });
+        return;
+      }
+
+      if (newStatus === 'Ready to apply') {
+        const { data: student, error: fetchError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', studentId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const requiredFields = [
+          { key: 'firstname', label: 'First Name' },
+          { key: 'lastname', label: 'Last Name' },
+          { key: 'citizenship', label: 'Citizenship' },
+          { key: 'dob', label: 'Date of Birth' },
+          { key: 'whatsapp', label: 'WhatsApp' },
+          { key: 'main_number', label: 'Main Number' },
+          { key: 'email', label: 'Email' },
+          { key: 'educationlevel', label: 'Education Level' },
+          { key: 'desiredfield', label: 'Desired Field' },
+          { key: 'preferredspecialization', label: 'Specialization' },
+          { key: 'startdate', label: 'Start Date' },
+          { key: 'destination', label: 'Destination' },
+          { key: 'budget', label: 'Budget' },
+          { key: 'passportnumber', label: 'Passport Number' },
+          { key: 'passportexpiry', label: 'Passport Expiry' },
+          { key: 'visastatus', label: 'Visa Status' }
+        ];
+
+        const missingFields = requiredFields.filter(field => {
+          const value = student[field.key];
+          if (value === null || value === undefined) return true;
+          if (typeof value === 'string' && value.trim() === '') return true;
+          if (Array.isArray(value) && value.length === 0) return true;
+          if (field.key === 'budget' && Number(value) <= 0) return true;
+          return false;
+        });
+
+        if (missingFields.length > 0) {
+          const fieldLabels = missingFields.map(f => f.label);
+          setWarningModal({
+            isOpen: true,
+            title: 'Incomplete Profile',
+            message: 'To move to "Ready to apply", the student profile must be fully completed. Please fill in the following fields:',
+            type: 'incomplete',
+            missingFields: fieldLabels
+          });
+          return;
+        }
+      }
+
       const { error } = await supabase
         .from('students')
         .update({ status: newStatus })
@@ -130,7 +216,7 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
           firstname: data.firstName,
           middlename: data.middleName,
           lastname: data.lastName,
-          email: data.email || 'no-email@provided.com',
+          email: data.email,
           country: data.nationality,
           status: 'New Student',
           recruiter_id: user.id,
@@ -143,6 +229,8 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
           destination: data.destination,
           educationlevel: data.educationLevel,
           whatsapp: data.whatsapp,
+          main_number: data.mainNumber,
+          citizenship: data.nationality,
           budget: data.budget,
           preferredspecialization: data.preferredSpecialization,
           languagelevels: JSON.stringify(data.languageProficiency)
@@ -412,9 +500,24 @@ const StudentsList: React.FC<StudentsListProps> = ({ setActiveTab, setSelectedSt
               setSelectedStudentId(id);
               setActiveTab('student-detail');
             }}
+            onValidationFailed={(type, title, message) => setWarningModal({
+              isOpen: true,
+              title,
+              message,
+              type
+            })}
           />
         )}
       </div>
+
+      <StatusWarningModal 
+        isOpen={warningModal.isOpen}
+        onClose={() => setWarningModal(prev => ({ ...prev, isOpen: false }))}
+        title={warningModal.title}
+        message={warningModal.message}
+        type={warningModal.type}
+        missingFields={warningModal.missingFields}
+      />
 
       {studentToDelete && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

@@ -21,7 +21,7 @@ import {
   FileText
 } from 'lucide-react';
 import { supabase } from '../../supabase';
-import { UserProfile } from '../../types';
+import { UserProfile, StudentStatus } from '../../types';
 import ApplicationCard from './ApplicationCard';
 import ProgramMatcher from './ProgramMatcher';
 import ApplicationSubmissionForm from './ApplicationSubmissionForm';
@@ -30,6 +30,7 @@ import { parseISO, format, isValid } from 'date-fns';
 import { PatternFormat } from 'react-number-format';
 import { motion, AnimatePresence } from 'motion/react';
 import SpecializationSelector from './SpecializationSelector';
+import StatusWarningModal from './StatusWarningModal';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { getNames } from 'country-list';
@@ -50,6 +51,136 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
   const [isMatchingPrograms, setIsMatchingPrograms] = useState(false);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [applications, setApplications] = useState<any[]>([]);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [warningModal, setWarningModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'incomplete' | 'automated';
+    missingFields?: string[];
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'incomplete'
+  });
+
+  const STATUSES: { id: StudentStatus; label: string; style: string }[] = [
+    { id: 'New Student', label: 'New Student', style: 'bg-gray-50 text-gray-500 border-gray-200' },
+    { id: 'Follow up', label: 'Follow up', style: 'bg-blue-50 text-blue-600 border-blue-100' },
+    { id: 'Ready to apply', label: 'Ready to apply', style: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+    { id: 'Application started', label: 'Application started', style: 'bg-purple-50 text-purple-600 border-purple-100' },
+    { id: 'Action Required', label: 'Action Required', style: 'bg-amber-50 text-amber-600 border-amber-100' },
+    { id: 'Application accepted', label: 'Accepted', style: 'bg-green-50 text-green-600 border-green-100' },
+    { id: 'Waiting payment', label: 'Waiting Payment', style: 'bg-orange-50 text-orange-600 border-orange-100' },
+    { id: 'Payment received', label: 'Paid', style: 'bg-teal-50 text-teal-600 border-teal-100' },
+    { id: 'Ready for visa', label: 'Ready for Visa', style: 'bg-cyan-50 text-cyan-600 border-cyan-100' },
+    { id: 'Waiting visa', label: 'Waiting Visa', style: 'bg-blue-50 text-blue-600 border-blue-100' },
+    { id: 'Visa Approved', label: 'Visa Approved', style: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+    { id: 'Done', label: 'Done', style: 'bg-green-50 text-green-600 border-green-100' },
+    { id: 'Refund', label: 'Refund', style: 'bg-red-50 text-red-600 border-red-100' },
+  ];
+
+  const handleStatusChange = async (newStatus: StudentStatus) => {
+    if (newStatus === student.status) {
+      setShowStatusDropdown(false);
+      return;
+    }
+
+    try {
+      setIsUpdatingStatus(true);
+
+      const automatedStatuses = ['Application started', 'Action Required', 'Application accepted', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Refund'];
+      
+      if (automatedStatuses.includes(student.status)) {
+        setWarningModal({
+          isOpen: true,
+          title: 'Automated Stage',
+          message: 'The current stage is managed automatically and cannot be changed manually.',
+          type: 'automated'
+        });
+        setIsUpdatingStatus(false);
+        setShowStatusDropdown(false);
+        return;
+      }
+
+      if (automatedStatuses.includes(newStatus)) {
+        setWarningModal({
+          isOpen: true,
+          title: 'Automated Stage',
+          message: 'This stage is managed automatically by the system and cannot be changed manually.',
+          type: 'automated'
+        });
+        setIsUpdatingStatus(false);
+        setShowStatusDropdown(false);
+        return;
+      }
+      
+      if (newStatus === 'Ready to apply') {
+        const requiredFields = [
+          { key: 'firstName', label: 'First Name' },
+          { key: 'lastName', label: 'Last Name' },
+          { key: 'nationality', label: 'Citizenship' },
+          { key: 'dob', label: 'Date of Birth' },
+          { key: 'whatsapp', label: 'WhatsApp' },
+          { key: 'mainNumber', label: 'Main Number' },
+          { key: 'email', label: 'Email' },
+          { key: 'educationLevel', label: 'Education Level' },
+          { key: 'desiredField', label: 'Desired Field' },
+          { key: 'preferredSpecialization', label: 'Specialization' },
+          { key: 'startDate', label: 'Start Date' },
+          { key: 'destination', label: 'Destination' },
+          { key: 'budget', label: 'Budget' },
+          { key: 'passportNumber', label: 'Passport Number' },
+          { key: 'passportExpiry', label: 'Passport Expiry' },
+          { key: 'visaStatus', label: 'Visa Status' }
+        ];
+
+        const missingFields = requiredFields.filter(field => {
+          const value = formData[field.key];
+          if (value === null || value === undefined) return true;
+          if (typeof value === 'string' && value.trim() === '') return true;
+          if (Array.isArray(value) && value.length === 0) return true;
+          if (field.key === 'budget' && Number(value) <= 0) return true;
+          return false;
+        });
+
+        if (missingFields.length > 0) {
+          const fieldLabels = missingFields.map(f => f.label);
+          setWarningModal({
+            isOpen: true,
+            title: 'Incomplete Profile',
+            message: 'To move to "Ready to apply", the student profile must be fully completed. Please fill in the following fields:',
+            type: 'incomplete',
+            missingFields: fieldLabels
+          });
+          setIsUpdatingStatus(false);
+          setShowStatusDropdown(false);
+          return;
+        }
+      }
+
+      const dbData: any = { status: newStatus };
+      // Map frontend keys to DB keys if needed, but for status it's just 'status'
+      
+      const { error } = await supabase
+        .from('students')
+        .update(dbData)
+        .eq('id', studentId);
+
+      if (error) throw error;
+      
+      setStudent(prev => ({ ...prev, status: newStatus }));
+      setFormData(prev => ({ ...prev, status: newStatus }));
+      setShowStatusDropdown(false);
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert('Error updating status: ' + (err as Error).message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   useEffect(() => {
     fetchStudent();
@@ -135,7 +266,8 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
         firstName: data.firstname || data.firstName || nameParts[0] || '',
         middleName: data.middlename || data.middleName || (nameParts.length > 2 ? nameParts[1] : ''),
         lastName: data.lastname || data.lastName || (nameParts.length > 2 ? nameParts.slice(2).join(' ') : (nameParts[1] || '')),
-        nationality: data.country || '',
+        nationality: data.citizenship || data.country || '',
+        mainNumber: data.main_number || '',
         passportNumber: data.passportnumber || data.passportNumber || '',
         passportExpiry: data.passportexpiry || data.passportExpiry || '',
         visaStatus: data.visastatus || data.visaStatus || '',
@@ -178,6 +310,8 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
         destination: formData.destination,
         educationlevel: formData.educationLevel,
         whatsapp: formData.whatsapp,
+        main_number: formData.mainNumber,
+        citizenship: formData.nationality,
         budget: formData.budget,
         preferredspecialization: formData.preferredSpecialization,
         languagelevels: JSON.stringify(formData.languageLevels),
@@ -268,17 +402,59 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
             <div className="text-xs text-gray-400 mb-1">My Students / {student.name}</div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">Student Profile — {student.name}</h1>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                student.status === 'Preparation' ? 'bg-gray-50 text-gray-500 border-gray-200' :
-                student.status === 'Applied' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                student.status === 'Payment' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                student.status === 'Visa' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                student.status === 'Enrolled' ? 'bg-green-50 text-green-600 border-green-100' :
-                student.status === 'Rejected' ? 'bg-red-50 text-red-600 border-red-100' :
-                'bg-gray-50 text-gray-500 border-gray-200'
-              }`}>
-                {student.status}
-              </span>
+              <div className="relative">
+                <button 
+                  onClick={() => user.role !== 'institution' && setShowStatusDropdown(!showStatusDropdown)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1.5 transition-all ${
+                    STATUSES.find(s => s.id === student.status)?.style || 'bg-gray-50 text-gray-500 border-gray-200'
+                  } ${user.role !== 'institution' ? 'hover:shadow-md cursor-pointer' : ''}`}
+                >
+                  {STATUSES.find(s => s.id === student.status)?.label || student.status}
+                  {user.role !== 'institution' && <ChevronDown size={12} />}
+                </button>
+                
+                <AnimatePresence>
+                  {showStatusDropdown && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-30"
+                    >
+                      <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-50 mb-1">
+                        Change Status
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {STATUSES.map((status) => (
+                          <button
+                            key={status.id}
+                            onClick={() => handleStatusChange(status.id)}
+                            disabled={isUpdatingStatus}
+                            className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-between group ${
+                              student.status === status.id 
+                                ? 'bg-indigo-50 text-[#4338CA]' 
+                                : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${status.style.split(' ')[1].replace('text-', 'bg-')}`}></div>
+                              {status.label}
+                            </div>
+                            {student.status === status.id && (
+                              <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center">
+                                <CheckCircle size={10} className="text-white" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {showStatusDropdown && (
+                  <div className="fixed inset-0 z-20" onClick={() => setShowStatusDropdown(false)}></div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -406,7 +582,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                 </div>
 
                 <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Nationality <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-gray-700">Citizenship <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <select 
                       value={formData.nationality}
@@ -427,6 +603,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                       selected={formData.dob ? parseISO(formData.dob) : null}
                       onChange={(date) => handleChange('dob', date && isValid(date) ? format(date, 'yyyy-MM-dd') : '')}
                       dateFormat="dd.MM.yyyy"
+                      wrapperClassName="w-full"
                       className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-100 outline-none transition-all text-sm"
                       placeholderText="Select date"
                     />
@@ -507,7 +684,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
             ) : (
               <div className="space-y-8">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Education Level <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-gray-700">Education Level</label>
                   <div className="relative">
                     <select 
                       value={formData.educationLevel}
@@ -614,7 +791,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Preferred Specialization <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-gray-700">Preferred Specialization</label>
                   <SpecializationSelector 
                     selected={formData.preferredSpecialization}
                     onChange={(selected) => handleChange('preferredSpecialization', selected)}
@@ -622,7 +799,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Start Date <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-gray-700">Start Date</label>
                   <div className="relative">
                     <select 
                       value={formData.startDate}
@@ -638,7 +815,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Study Destination <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-bold text-gray-700">Study Destination</label>
                   <div className="relative">
                     <select 
                       value={formData.destination}
@@ -695,6 +872,15 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                     </div>
                   </div>
                 )}
+                {student.mainNumber && (
+                   <div className="flex items-center gap-4 p-4 bg-indigo-50 rounded-2xl">
+                    <Phone className="text-indigo-500" size={20} />
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-indigo-600/60 mb-0.5">Main Number</div>
+                      <div className="text-sm font-bold text-gray-900">{student.mainNumber}</div>
+                    </div>
+                  </div>
+                )}
                 {student.email && (
                   <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-2xl">
                     <Mail className="text-blue-500" size={20} />
@@ -708,7 +894,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
             ) : (
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">WhatsApp Number</label>
+                  <label className="text-xs font-bold text-gray-700">WhatsApp Number <span className="text-red-500">*</span></label>
                   <PhoneInput
                     country={student.country?.toLowerCase() === 'russia' ? 'ru' : 'us'}
                     value={formData.whatsapp}
@@ -720,7 +906,19 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700">Email</label>
+                  <label className="text-xs font-bold text-gray-700">Main Number <span className="text-red-500">*</span></label>
+                  <PhoneInput
+                    country={student.country?.toLowerCase() === 'russia' ? 'ru' : 'us'}
+                    value={formData.mainNumber}
+                    onChange={(phone) => handleChange('mainNumber', phone)}
+                    inputClass="!w-full !px-4 !py-3 !bg-gray-50 !border-transparent !rounded-xl !focus:bg-white !focus:border-indigo-100 !outline-none !transition-all !text-sm !h-auto !pl-12"
+                    containerClass="!w-full"
+                    buttonClass="!bg-gray-50 !border-transparent !rounded-l-xl !border-r-0 !pl-2"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-700">Email <span className="text-red-500">*</span></label>
                   <input 
                     type="email" 
                     value={formData.email}
@@ -834,6 +1032,14 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
           </div>
         </section>
       )}
+      <StatusWarningModal 
+        isOpen={warningModal.isOpen}
+        onClose={() => setWarningModal(prev => ({ ...prev, isOpen: false }))}
+        title={warningModal.title}
+        message={warningModal.message}
+        type={warningModal.type}
+        missingFields={warningModal.missingFields}
+      />
     </div>
   );
 };

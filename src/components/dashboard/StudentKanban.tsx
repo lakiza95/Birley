@@ -7,6 +7,7 @@ interface StudentKanbanProps {
   students: any[];
   onStatusChange: (studentId: string, newStatus: StudentStatus) => void;
   onStudentClick: (studentId: string) => void;
+  onValidationFailed?: (type: 'incomplete' | 'automated', title: string, message: string) => void;
 }
 
 const COLUMNS: { id: StudentStatus; title: string; color: string; isAutomated: boolean }[] = [
@@ -20,11 +21,12 @@ const COLUMNS: { id: StudentStatus; title: string; color: string; isAutomated: b
   { id: 'Payment received', title: 'Payment received', color: 'bg-teal-50 text-teal-600', isAutomated: true },
   { id: 'Ready for visa', title: 'Ready for visa', color: 'bg-cyan-50 text-cyan-600', isAutomated: true },
   { id: 'Waiting visa', title: 'Waiting visa', color: 'bg-blue-50 text-blue-600', isAutomated: false },
+  { id: 'Visa Approved', title: 'Visa Approved', color: 'bg-emerald-50 text-emerald-600', isAutomated: true },
   { id: 'Done', title: 'Done', color: 'bg-green-100 text-green-700', isAutomated: false },
   { id: 'Refund', title: 'Refund', color: 'bg-red-50 text-red-600', isAutomated: true }
 ];
 
-const StudentKanban: React.FC<StudentKanbanProps> = ({ students, onStatusChange, onStudentClick }) => {
+const StudentKanban: React.FC<StudentKanbanProps> = ({ students, onStatusChange, onStudentClick, onValidationFailed }) => {
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
@@ -35,7 +37,15 @@ const StudentKanban: React.FC<StudentKanbanProps> = ({ students, onStatusChange,
     const destColumn = COLUMNS.find(c => c.id === destination.droppableId);
 
     if (sourceColumn?.isAutomated || destColumn?.isAutomated) {
-      alert('This stage is automated and cannot be changed manually.');
+      if (onValidationFailed) {
+        onValidationFailed(
+          'automated',
+          'Automated Stage',
+          'This stage is managed automatically by the system and cannot be changed manually.'
+        );
+      } else {
+        alert('This stage is automated and cannot be changed manually.');
+      }
       return;
     }
 

@@ -24,10 +24,7 @@ const AddInstitutionForm: React.FC<AddInstitutionFormProps> = ({ isOpen, onClose
     description: '',
     logo_url: '',
     school_commission_rate: 0,
-    recruiter_commission_rate: 0,
-    payment_model: 'full_upfront',
-    first_payment_percent: 100,
-    second_payment_deadline_days: 5
+    recruiter_commission_rate: 0
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -143,10 +140,7 @@ const AddInstitutionForm: React.FC<AddInstitutionFormProps> = ({ isOpen, onClose
         description: '',
         logo_url: '',
         school_commission_rate: 0,
-        recruiter_commission_rate: 0,
-        payment_model: 'full_upfront',
-        first_payment_percent: 100,
-        second_payment_deadline_days: 5
+        recruiter_commission_rate: 0
       });
     } catch (err: any) {
       console.error('Error adding institution:', err);
@@ -375,62 +369,6 @@ const AddInstitutionForm: React.FC<AddInstitutionFormProps> = ({ isOpen, onClose
                       placeholder="0"
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:border-[#4338CA] focus:bg-white transition-all outline-none text-sm"
                     />
-                  </div>
-                </div>
-
-                <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-4">
-                  <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Financial Model</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        Payment Model
-                      </label>
-                      <select
-                        name="payment_model"
-                        value={formData.payment_model}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-[#4338CA] transition-all outline-none text-sm appearance-none"
-                      >
-                        <option value="full_upfront">100% Upfront</option>
-                        <option value="split_payment">Split Payment (2 parts)</option>
-                        <option value="platform">Platform Managed</option>
-                      </select>
-                    </div>
-
-                    {formData.payment_model === 'split_payment' && (
-                      <>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                            1st Payment Proportion (%)
-                          </label>
-                          <input
-                            required
-                            type="number"
-                            name="first_payment_percent"
-                            value={formData.first_payment_percent}
-                            onChange={handleChange}
-                            min="1"
-                            max="99"
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-[#4338CA] transition-all outline-none text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                            2nd Payment Deadline (Days after Visa)
-                          </label>
-                          <input
-                            required
-                            type="number"
-                            name="second_payment_deadline_days"
-                            value={formData.second_payment_deadline_days}
-                            onChange={handleChange}
-                            min="1"
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-[#4338CA] transition-all outline-none text-sm"
-                          />
-                        </div>
-                      </>
-                    )}
                   </div>
                 </div>
 

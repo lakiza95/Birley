@@ -32,6 +32,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }) => {
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [verificationQueue, setVerificationQueue] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -81,21 +82,30 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
 
   const fetchAdminStats = async () => {
     console.log('DEBUG: fetchAdminStats started');
-    const [partners, pending, institutions, applications, recentPartners] = await Promise.all([
+    const [partners, pending, institutions, applications, recentPartners, pendingInsts] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'partner'),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).in('status', ['pending', 'UNDER_REVIEW', 'PROFILE_COMPLETED']),
       supabase.from('institutions').select('id', { count: 'exact', head: true }),
       supabase.from('applications').select('id', { count: 'exact', head: true }),
-      supabase.from('profiles').select('*').eq('role', 'partner').eq('status', 'pending').order('created_at', { ascending: false }).limit(3)
+      supabase.from('profiles').select('*').eq('role', 'partner').eq('status', 'pending').order('created_at', { ascending: false }).limit(3),
+      supabase.from('institutions').select('*', { count: 'exact' }).eq('status', 'Pending').order('created_at', { ascending: false }).limit(5)
     ]);
 
     setStats({
       totalPartners: partners.count || 0,
-      pendingReviews: pending.count || 0,
+      pendingReviews: (pending.count || 0) + (pendingInsts.count || 0),
       activeInstitutions: institutions.count || 0,
       totalApplications: applications.count || 0
     });
     setRecentActivity(recentPartners.data || []);
+    
+    // Combine pending partners and institutions for the queue
+    const queue = [
+      ...(pendingInsts.data || []).map(i => ({ ...i, type: 'institution' })),
+      ...(recentPartners.data || []).map(p => ({ ...p, type: 'partner' }))
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    
+    setVerificationQueue(queue);
     console.log('DEBUG: fetchAdminStats finished', { totalPartners: partners.count, pendingReviews: pending.count });
   };
 
@@ -265,11 +275,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user, setActiveTab, balance = 0 }
           </div>
 
           <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-apple">
-            <h3 className="text-xl font-black text-gray-900 mb-8 tracking-tight">System Alerts</h3>
-            <div className="space-y-2">
-              <AlertItem title="High Server Load" time="10m ago" type="warning" />
-              <AlertItem title="New Institution Request" time="45m ago" type="info" />
-              <AlertItem title="Database Backup Complete" time="2h ago" type="success" />
+            <h3 className="text-xl font-black text-gray-900 mb-8 tracking-tight">Verification Queue</h3>
+            <div className="space-y-4">
+              {verificationQueue.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-emerald-100/50">
+                    <CheckCircle2 size={32} />
+                  </div>
+                  <p className="text-sm text-gray-400 font-medium italic">All caught up!</p>
+                </div>
+              ) : (
+                verificationQueue.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-[24px] transition-all group border border-gray-50/50">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 ${item.type === 'institution' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'} rounded-2xl flex items-center justify-center font-black shadow-sm group-hover:scale-105 transition-transform`}>
+                        {item.type === 'institution' ? <Building2 size={24} /> : (clean(item.first_name)?.[0] || item.email?.[0] || 'U').toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-gray-900 leading-tight">
+                          {item.type === 'institution' ? item.name : `${clean(item.first_name)} ${clean(item.last_name)}`}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                          {item.type === 'institution' ? 'Institution' : 'Recruiter'} • {new Date(item.created_at).toLocaleDateString('en-US')}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setActiveTab(item.type === 'institution' ? 'institutions' : 'verification')}
+                      className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    >
+                      Review
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

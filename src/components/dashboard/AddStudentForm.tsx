@@ -51,6 +51,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
     destination: '',
     budget: 15000,
     whatsapp: '',
+    mainNumber: '',
     email: '',
     documents: [] as { file: File | null, type: string }[]
   });
@@ -97,14 +98,12 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
   };
 
   const isFormValid = formData.firstName && formData.lastName && formData.nationality && formData.dob && 
-                      formData.educationLevel && formData.preferredSpecialization.length > 0 &&
-                      formData.startDate && formData.destination;
+                      formData.whatsapp && formData.email && formData.mainNumber;
 
-  const totalRequired = 8;
+  const totalRequired = 7;
   const currentCompleted = [
     formData.firstName, formData.lastName, formData.nationality, formData.dob, 
-    formData.educationLevel, formData.preferredSpecialization.length > 0,
-    formData.startDate, formData.destination
+    formData.whatsapp, formData.email, formData.mainNumber
   ].filter(Boolean).length;
 
   const filteredSpecs = Object.entries(SPECIALIZATIONS).flatMap(([category, specs]) => 
@@ -191,7 +190,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
             </div>
 
             <div className="md:col-span-2 space-y-2">
-              <label className="text-xs font-bold text-gray-700">Nationality <span className="text-red-500">*</span></label>
+              <label className="text-xs font-bold text-gray-700">Citizenship <span className="text-red-500">*</span></label>
               <div className="relative">
                 <select 
                   value={formData.nationality}
@@ -212,6 +211,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
                   selected={formData.dob ? parseISO(formData.dob) : null}
                   onChange={(date) => handleChange('dob', date && isValid(date) ? format(date, 'yyyy-MM-dd') : '')}
                   dateFormat="dd.MM.yyyy"
+                  wrapperClassName="w-full"
                   className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-xl focus:bg-white focus:border-indigo-100 outline-none transition-all text-sm"
                   placeholderText="Select Date"
                 />
@@ -232,7 +232,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
 
           <div className="space-y-8">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-700">Education Level <span className="text-red-500">*</span></label>
+              <label className="text-xs font-bold text-gray-700">Education Level</label>
               <div className="relative">
                 <select 
                   value={formData.educationLevel}
@@ -301,7 +301,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-700">Preferred Specialization <span className="text-red-500">*</span></label>
+              <label className="text-xs font-bold text-gray-700">Preferred Specialization</label>
               <SpecializationSelector 
                 selected={formData.preferredSpecialization}
                 onChange={(selected) => handleChange('preferredSpecialization', selected)}
@@ -310,7 +310,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-700">Desired Start Date <span className="text-red-500">*</span></label>
+                <label className="text-xs font-bold text-gray-700">Desired Start Date</label>
                 <div className="relative">
                   <select 
                     value={formData.startDate}
@@ -326,7 +326,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-700">Destination Country <span className="text-red-500">*</span></label>
+                <label className="text-xs font-bold text-gray-700">Destination Country</label>
                 <div className="relative">
                   <select 
                     value={formData.destination}
@@ -378,7 +378,7 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-700">WhatsApp Number</label>
+              <label className="text-xs font-bold text-gray-700">WhatsApp Number <span className="text-red-500">*</span></label>
               <PhoneInput
                 country={'us'}
                 value={formData.whatsapp}
@@ -390,7 +390,19 @@ const AddStudentForm: React.FC<AddStudentFormProps> = ({ onCancel, onSave }) => 
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-700">Email (Optional)</label>
+              <label className="text-xs font-bold text-gray-700">Main Number <span className="text-red-500">*</span></label>
+              <PhoneInput
+                country={'us'}
+                value={formData.mainNumber}
+                onChange={(phone) => handleChange('mainNumber', phone)}
+                inputClass="!w-full !px-4 !py-3 !bg-gray-50 !border-transparent !rounded-xl !focus:bg-white !focus:border-indigo-100 !outline-none !transition-all !text-sm !h-auto !pl-12"
+                containerClass="!w-full"
+                buttonClass="!bg-gray-50 !border-transparent !rounded-l-xl !border-r-0 !pl-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-700">Email <span className="text-red-500">*</span></label>
               <input 
                 type="email" 
                 value={formData.email}
