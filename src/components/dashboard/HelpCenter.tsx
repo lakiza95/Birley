@@ -11,7 +11,9 @@ import {
   Send,
   ArrowLeft,
   User,
-  Shield
+  Shield,
+  Paperclip,
+  FileIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../supabase';
@@ -35,6 +37,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ user }) => {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [messageText, setMessageText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -168,22 +172,53 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ user }) => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedTicket || sendingMessage) return;
+    if ((!messageText.trim() && !selectedFile) || !selectedTicket || sendingMessage) return;
 
     try {
       setSendingMessage(true);
+
+      let fileUrl = null;
+      let fileName = null;
+      let fileType = null;
+
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const storedFileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `tickets/${selectedTicket.id}/${storedFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-attachments')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-attachments')
+          .getPublicUrl(filePath);
+
+        fileUrl = publicUrlData.publicUrl;
+        fileName = selectedFile.name;
+        fileType = selectedFile.type || 'application/octet-stream';
+      }
+
       const { error } = await supabase
         .from('ticket_messages')
         .insert([{
           ticket_id: selectedTicket.id,
           sender_id: user.id,
-          text: messageText.trim()
+          text: messageText.trim() || 'Shared a file',
+          file_url: fileUrl,
+          file_name: fileName,
+          file_type: fileType
         }]);
 
       if (error) throw error;
       setMessageText('');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Error sending message:', err);
+      alert('Error sending message. Please try again.');
     } finally {
       setSendingMessage(false);
     }
@@ -321,6 +356,21 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ user }) => {
                           ? 'bg-brand text-white rounded-tr-none' 
                           : 'bg-white border border-gray-100 text-gray-700 rounded-tl-none'
                       }`}>
+                        {msg.file_url && (
+                          <a 
+                            href={msg.file_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className={`flex items-center gap-2 p-3 mb-2 rounded-xl transition-colors ${
+                              msg.sender_id === user.id ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-900'
+                            }`}
+                          >
+                            <FileIcon size={18} />
+                            <span className="text-xs font-bold truncate max-w-[200px]">
+                              {msg.file_name || 'Attachment'}
+                            </span>
+                          </a>
+                        )}
                         <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium">{msg.text}</p>
                       </div>
                       <div className={`flex items-center gap-2 mt-2 px-1 ${
@@ -340,7 +390,41 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ user }) => {
 
           {/* Message Input */}
           <div className="p-6 border-t border-gray-100 bg-white">
+            {selectedFile && (
+              <div className="flex items-center gap-2 mb-3 bg-brand/10 text-brand px-3 py-2 rounded-xl max-w-max">
+                <FileIcon size={14} />
+                <span className="text-xs font-bold truncate max-w-[200px]">{selectedFile.name}</span>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="p-1 hover:bg-brand/20 rounded-lg transition-colors ml-1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
             <form onSubmit={handleSendMessage} className="flex items-center gap-4">
+              <button
+                type="button"
+                disabled={selectedTicket.status === 'closed'}
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 bg-gray-50 text-gray-400 rounded-[24px] hover:text-brand hover:bg-brand/5 focus:bg-white transition-all outline-none disabled:opacity-50"
+              >
+                <Paperclip size={24} />
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                className="hidden" 
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setSelectedFile(e.target.files[0]);
+                  }
+                }}
+              />
               <div className="flex-1 relative">
                 <input
                   type="text"
@@ -353,8 +437,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ user }) => {
               </div>
               <button
                 type="submit"
-                disabled={!messageText.trim() || selectedTicket.status === 'closed' || sendingMessage}
-                className="p-4 bg-brand text-white rounded-[24px] hover:bg-brand/90 transition-all shadow-xl shadow-brand/20 disabled:opacity-50 active:scale-95"
+                disabled={(!messageText.trim() && !selectedFile) || selectedTicket.status === 'closed' || sendingMessage}
+                className="p-4 bg-brand text-white rounded-[24px] hover:bg-brand/90 transition-all shadow-xl shadow-brand/20 disabled:opacity-50 active:scale-95 shrink-0"
               >
                 {sendingMessage ? (
                   <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />

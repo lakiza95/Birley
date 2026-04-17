@@ -16,7 +16,9 @@ import {
   Mail,
   Globe,
   Send,
-  Users
+  Users,
+  FileIcon,
+  Paperclip
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -50,6 +52,8 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isRecruiterModalOpen, setIsRecruiterModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCheckingChat, setIsCheckingChat] = useState(false);
@@ -122,7 +126,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   };
 
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !application.institution_id) return;
+    if ((!messageText.trim() && !selectedFile) || !application.institution_id) return;
 
     setIsSending(true);
     try {
@@ -157,13 +161,40 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
         chatId = existingChat.id;
       }
 
+      let fileUrl = null;
+      let fileName = null;
+      let fileType = null;
+
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const storedFileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `${chatId}/${storedFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-attachments')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-attachments')
+          .getPublicUrl(filePath);
+
+        fileUrl = publicUrlData.publicUrl;
+        fileName = selectedFile.name;
+        fileType = selectedFile.type || 'application/octet-stream';
+      }
+
       // 2. Insert message
       const { error: messageError } = await supabase
         .from('messages')
         .insert([{
           chat_id: chatId,
           sender_id: user.id,
-          text: messageText.trim()
+          text: messageText.trim() || 'Shared a file',
+          file_url: fileUrl,
+          file_name: fileName,
+          file_type: fileType
         }]);
 
       if (messageError) throw messageError;
@@ -176,6 +207,8 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
 
       setIsMessageModalOpen(false);
       setMessageText('');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       
       // After sending first message, open the chat
       if (setSelectedChatId && setActiveTab) {
@@ -857,7 +890,43 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
 
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Your Message</label>
+                  <div className="flex items-center justify-between pointer-events-none">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pointer-events-auto">Your Message</label>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:text-indigo-800 transition-colors pointer-events-auto"
+                    >
+                      <Paperclip size={14} />
+                      Attach File
+                    </button>
+                  </div>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    className="hidden" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setSelectedFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  {selectedFile && (
+                    <div className="flex items-center gap-2 mb-2 bg-[#4338CA]/10 text-[#4338CA] px-3 py-2 rounded-xl max-w-max pointer-events-auto">
+                      <FileIcon size={14} />
+                      <span className="text-xs font-medium truncate max-w-[200px]">{selectedFile.name}</span>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="p-1 hover:bg-[#4338CA]/20 rounded-lg transition-colors ml-1"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                   <textarea
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
@@ -875,7 +944,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                   </button>
                   <button
                     onClick={handleSendMessage}
-                    disabled={isSending || !messageText.trim()}
+                    disabled={isSending || (!messageText.trim() && !selectedFile)}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#4338CA] text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
                     {isSending ? (

@@ -105,6 +105,9 @@ export interface Message {
   senderId: string;
   text: string;
   timestamp: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
 }
 
 export interface Chat {
@@ -144,6 +147,9 @@ export interface TicketMessage {
   sender_id: string;
   text: string;
   created_at: string;
+  file_url?: string;
+  file_name?: string;
+  file_type?: string;
 }
 
 export interface Program {

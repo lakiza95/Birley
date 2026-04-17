@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   Send, 
@@ -7,7 +7,10 @@ import {
   Building2, 
   Inbox as InboxIcon,
   UserPlus,
-  LogOut
+  LogOut,
+  Paperclip,
+  FileIcon,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chat, Message, UserProfile } from '../../types';
@@ -35,6 +38,8 @@ const Inbox: React.FC<InboxProps> = ({
   const [chats, setChats] = useState<Chat[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
 
@@ -179,7 +184,10 @@ const Inbox: React.FC<InboxProps> = ({
         id: msg.id,
         senderId: msg.sender_id,
         text: msg.text,
-        timestamp: formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })
+        timestamp: formatDistanceToNow(new Date(msg.created_at), { addSuffix: true }),
+        fileUrl: msg.file_url,
+        fileName: msg.file_name,
+        fileType: msg.file_type
       }));
 
       setMessages(mappedMessages);
@@ -190,19 +198,46 @@ const Inbox: React.FC<InboxProps> = ({
 
     const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedChatId || isSending) return;
+    if ((!messageText.trim() && !selectedFile) || !selectedChatId || isSending) return;
 
     const cleanText = messageText.trim().replace(/^__SYSTEM_NOTIFICATION__\s*/, '');
-    if (!cleanText) return;
+    if (!cleanText && !selectedFile) return;
 
     setIsSending(true);
     try {
+      let fileUrl = null;
+      let fileName = null;
+      let fileType = null;
+
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const storedFileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `${selectedChatId}/${storedFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-attachments')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-attachments')
+          .getPublicUrl(filePath);
+
+        fileUrl = publicUrlData.publicUrl;
+        fileName = selectedFile.name;
+        fileType = selectedFile.type || 'application/octet-stream';
+      }
+
       const { error } = await supabase
         .from('messages')
         .insert([{
           chat_id: selectedChatId,
           sender_id: user.id,
-          text: cleanText
+          text: cleanText || 'Shared a file',
+          file_url: fileUrl,
+          file_name: fileName,
+          file_type: fileType
         }]);
 
       if (error) throw error;
@@ -214,9 +249,12 @@ const Inbox: React.FC<InboxProps> = ({
         .eq('id', selectedChatId);
 
       setMessageText('');
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       // Message will be added via real-time subscription
     } catch (err) {
       console.error('Error sending message:', err);
+      alert('Error sending message. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -463,6 +501,21 @@ const Inbox: React.FC<InboxProps> = ({
                           ? 'bg-indigo-600 text-white rounded-tr-none' 
                           : 'bg-gray-100 text-gray-800 rounded-tl-none'
                       }`}>
+                        {msg.fileUrl && (
+                          <a 
+                            href={msg.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className={`flex items-center gap-2 p-2 mb-2 rounded-xl transition-colors ${
+                              isMe ? 'bg-indigo-700/50 hover:bg-indigo-700' : 'bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <FileIcon size={16} />
+                            <span className="text-[10px] font-medium truncate max-w-[150px]">
+                              {msg.fileName || 'Attachment'}
+                            </span>
+                          </a>
+                        )}
                         <p className="text-xs leading-relaxed font-medium">{msg.text}</p>
                       </div>
                       <div className={`flex items-center gap-2 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -478,7 +531,40 @@ const Inbox: React.FC<InboxProps> = ({
 
             {/* Input Area */}
             <div className="p-4 bg-white border-t border-gray-50">
+              {selectedFile && (
+                <div className="flex items-center gap-2 mb-3 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl max-w-max">
+                  <FileIcon size={14} />
+                  <span className="text-xs font-medium truncate max-w-[200px]">{selectedFile.name}</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="p-1 hover:bg-indigo-100 rounded-lg transition-colors ml-1"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="flex items-center gap-3 max-w-3xl mx-auto w-full">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                >
+                  <Paperclip size={18} />
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  className="hidden" 
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedFile(e.target.files[0]);
+                    }
+                  }}
+                />
                 <div className="flex-1 relative">
                   <input 
                     type="text" 
@@ -491,8 +577,8 @@ const Inbox: React.FC<InboxProps> = ({
                 </div>
                 <button 
                   type="submit"
-                  disabled={isSending || !messageText.trim()}
-                  className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
+                  disabled={isSending || (!messageText.trim() && !selectedFile)}
+                  className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 shrink-0"
                 >
                   {isSending ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
