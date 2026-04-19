@@ -20,7 +20,9 @@ const COLUMNS: { id: ApplicationStatus; title: string; color: string; isAutomate
   { id: 'Ready for visa', title: 'Ready for visa', color: 'bg-cyan-50 text-cyan-600', isAutomated: false },
   { id: 'Visa Approved', title: 'Visa Approved', color: 'bg-indigo-50 text-indigo-600', isAutomated: false },
   { id: 'Done', title: 'Done', color: 'bg-green-100 text-green-700', isAutomated: true },
-  { id: 'Refund', title: 'Refund', color: 'bg-rose-50 text-rose-600', isAutomated: false }
+  { id: 'Refund', title: 'Refund', color: 'bg-rose-50 text-rose-600', isAutomated: false },
+  { id: 'Refund Requested', title: 'Refund Requested', color: 'bg-rose-100 text-rose-700', isAutomated: true },
+  { id: 'Cancelled', title: 'Cancelled', color: 'bg-gray-200 text-gray-500', isAutomated: true }
 ];
 
 const ApplicationKanban: React.FC<ApplicationKanbanProps> = ({ applications, onStatusChange, onApplicationClick }) => {

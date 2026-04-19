@@ -23,7 +23,9 @@ const COLUMNS: { id: StudentStatus; title: string; color: string; isAutomated: b
   { id: 'Waiting visa', title: 'Waiting visa', color: 'bg-blue-50 text-blue-600', isAutomated: false },
   { id: 'Visa Approved', title: 'Visa Approved', color: 'bg-emerald-50 text-emerald-600', isAutomated: true },
   { id: 'Done', title: 'Done', color: 'bg-green-100 text-green-700', isAutomated: false },
-  { id: 'Refund', title: 'Refund', color: 'bg-red-50 text-red-600', isAutomated: true }
+  { id: 'Refund', title: 'Refund', color: 'bg-red-50 text-red-600', isAutomated: true },
+  { id: 'Refund Requested', title: 'Refund Requested', color: 'bg-rose-100 text-rose-700', isAutomated: true },
+  { id: 'Cancelled', title: 'Cancelled', color: 'bg-gray-200 text-gray-500', isAutomated: true }
 ];
 
 const StudentKanban: React.FC<StudentKanbanProps> = ({ students, onStatusChange, onStudentClick, onValidationFailed }) => {

@@ -50,9 +50,36 @@ export interface UserProfile {
   email_notifications?: boolean;
 }
 
-export type StudentStatus = 'New Student' | 'Follow up' | 'Ready to apply' | 'Application started' | 'Action Required' | 'Application accepted' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Waiting visa' | 'Visa Approved' | 'Done' | 'Refund';
+export type StudentStatus = 'New Student' | 'Follow up' | 'Ready to apply' | 'Application started' | 'Action Required' | 'Application accepted' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Waiting visa' | 'Visa Approved' | 'Done' | 'Refund' | 'Refund Requested' | 'Cancelled';
 
-export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Visa Approved' | 'Done' | 'Refund' | 'Cancelled';
+export type ApplicationStatus = 'New application' | 'In review' | 'Action Required' | 'Approved' | 'Rejected' | 'Waiting payment' | 'Payment received' | 'Ready for visa' | 'Visa Approved' | 'Done' | 'Refund' | 'Cancelled' | 'Refund Requested';
+
+export interface RefundRequest {
+  id: string;
+  application_id: string;
+  recruiter_id: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  amount?: number;
+  created_at: string;
+  updated_at: string;
+  applications?: {
+    id: string;
+    student_id: string;
+    programs: {
+      name: string;
+    };
+    students: {
+      firstname: string;
+      lastname: string;
+    }
+  };
+  profiles?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+}
 
 export interface Student {
   id: string;

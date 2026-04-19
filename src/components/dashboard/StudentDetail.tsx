@@ -91,7 +91,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, user, onBack, 
     try {
       setIsUpdatingStatus(true);
 
-      const automatedStatuses = ['Application started', 'Action Required', 'Application accepted', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Refund'];
+      const automatedStatuses = ['Application started', 'Action Required', 'Application accepted', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Refund', 'Refund Requested'];
       
       if (automatedStatuses.includes(student.status)) {
         setWarningModal({

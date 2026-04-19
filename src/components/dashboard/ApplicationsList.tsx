@@ -566,7 +566,7 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
         activeFilters={activeFilters}
         onApply={setActiveFilters}
         fields={[
-          { key: 'status', label: 'Status', type: 'select', options: ['New application', 'In review', 'Action Required', 'Approved', 'Rejected', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Done', 'Refund'] },
+          { key: 'status', label: 'Status', type: 'select', options: ['New application', 'In review', 'Action Required', 'Approved', 'Rejected', 'Waiting payment', 'Payment received', 'Ready for visa', 'Visa Approved', 'Done', 'Refund', 'Refund Requested', 'Cancelled'] },
           { key: 'institution', label: 'Institution', type: 'text' },
           { key: 'program', label: 'Program', type: 'select', options: Object.keys(SPECIALIZATIONS) }
         ]}
@@ -588,6 +588,8 @@ const StatusBadge = ({ status, isOverdue }: { status: string; isOverdue?: boolea
     'Visa Approved': isOverdue ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600',
     'Done': 'bg-green-100 text-green-700',
     'Refund': 'bg-rose-50 text-rose-600',
+    'Refund Requested': 'bg-rose-100 text-rose-700',
+    'Cancelled': 'bg-gray-200 text-gray-700',
     // Legacy support
     'Submitted': 'bg-gray-50 text-gray-500',
     'Reviewing': 'bg-blue-50 text-blue-600',
@@ -607,6 +609,8 @@ const StatusBadge = ({ status, isOverdue }: { status: string; isOverdue?: boolea
     'Visa Approved': isOverdue ? AlertCircle : CheckCircle2,
     'Done': CheckCircle2,
     'Refund': AlertCircle,
+    'Refund Requested': Clock,
+    'Cancelled': X,
     // Legacy support
     'Submitted': Clock,
     'Reviewing': Clock,

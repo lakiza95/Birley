@@ -62,6 +62,14 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const [documents, setDocuments] = useState<any[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [studentDetails, setStudentDetails] = useState<any>(null);
+  
+  // Cancellation / Refund State
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [confirmAppId, setConfirmAppId] = useState('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  const isPaidStatus = ['Payment received', 'Ready for visa', 'Visa Approved', 'Done', 'Refund'].includes(application.status || '');
 
   React.useEffect(() => {
     const fetchDetails = async () => {
@@ -331,6 +339,66 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     }
   };
 
+  const handleCancelApplication = async () => {
+    if (!application.db_id) return;
+    
+    if (!isPaidStatus && confirmAppId !== application.id) {
+      alert('Please enter correct Application ID to confirm cancellation.');
+      return;
+    }
+
+    if (isPaidStatus && !cancelReason.trim()) {
+      alert('Please provide a reason for the refund request.');
+      return;
+    }
+
+    setIsSubmittingCancel(true);
+    try {
+      if (isPaidStatus) {
+        // Create refund request
+        const { error: refundError } = await supabase
+          .from('refund_requests')
+          .insert([{
+            application_id: application.db_id,
+            recruiter_id: user.id,
+            reason: cancelReason,
+            status: 'pending'
+          }]);
+
+        if (refundError) throw refundError;
+
+        // Update application status
+        const { error: appError } = await supabase
+          .from('applications')
+          .update({ status: 'Refund Requested' })
+          .eq('id', application.db_id);
+
+        if (appError) throw appError;
+        
+        alert('Refund request submitted successfully.');
+      } else {
+        // Simple cancellation
+        const { error } = await supabase
+          .from('applications')
+          .update({ status: 'Cancelled' })
+          .eq('id', application.db_id);
+
+        if (error) throw error;
+        alert('Application cancelled successfully.');
+      }
+
+      setIsCancelModalOpen(false);
+      setCancelReason('');
+      setConfirmAppId('');
+      if (onStatusUpdate) onStatusUpdate();
+    } catch (err) {
+      console.error('Error cancelling application:', err);
+      alert('Failed to cancel application.');
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
   const statusColors: any = {
     'New application': 'bg-gray-50 text-gray-500 border-gray-100',
     'In review': 'bg-blue-50 text-blue-600 border-blue-100',
@@ -343,6 +411,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     'Visa Approved': 'bg-indigo-50 text-indigo-600 border-indigo-100',
     'Done': 'bg-green-100 text-green-700 border-green-200',
     'Refund': 'bg-rose-50 text-rose-600 border-rose-100',
+    'Refund Requested': 'bg-rose-100 text-rose-700 border-rose-200',
     // Legacy support
     'Submitted': 'bg-gray-50 text-gray-500 border-gray-100',
     'Reviewing': 'bg-blue-50 text-blue-600 border-blue-100',
@@ -364,6 +433,7 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
     'Visa Approved': CheckCircle2,
     'Done': CheckCircle2,
     'Refund': AlertCircle,
+    'Refund Requested': Clock,
     // Legacy support
     'Submitted': Clock,
     'Reviewing': Clock,
@@ -705,8 +775,11 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                         <span>Edit Application</span>
                       </button>
                     )}
-                    {user.role === 'partner' && (
-                      <button className="flex items-center justify-center gap-2 w-full bg-white border border-gray-200 text-red-600 py-3.5 rounded-xl font-medium text-sm hover:bg-red-50 hover:border-red-100 transition-colors active:scale-95">
+                    {user.role === 'partner' && !['Cancelled', 'Refund', 'Refund Requested'].includes(application.status) && (
+                      <button 
+                        onClick={() => setIsCancelModalOpen(true)}
+                        className="flex items-center justify-center gap-2 w-full bg-white border border-gray-200 text-red-600 py-3.5 rounded-xl font-medium text-sm hover:bg-red-50 hover:border-red-100 transition-colors active:scale-95"
+                      >
                         <X size={18} />
                         <span>Cancel Application</span>
                       </button>
@@ -1014,6 +1087,105 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                         <Send size={18} />
                         <span>Send & Update Status</span>
                       </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancellation Modal */}
+      <AnimatePresence>
+        {isCancelModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
+                    <X size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      {isPaidStatus ? 'Refund Request' : 'Cancel Application'}
+                    </h2>
+                    <p className="text-xs text-gray-500">Application: {application.id}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsCancelModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {isPaidStatus ? (
+                  <div className="space-y-4">
+                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-start gap-3">
+                      <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                      <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                        This application has already been paid. To cancel it, you must submit a <b>refund request</b> to the platform administrators. Please explain the reason clearly.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Reason for Refund</label>
+                      <textarea
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        placeholder="Explain why the student is cancelling and why a refund is required..."
+                        className="w-full h-32 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-100 outline-none resize-none transition-all"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Are you sure you want to cancel this application? This action cannot be undone. To confirm, please type the Application ID below:
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Enter Application ID</label>
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">{application.id}</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={confirmAppId}
+                        onChange={(e) => setConfirmAppId(e.target.value)}
+                        placeholder="Type ID here..."
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-red-100 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setIsCancelModalOpen(false)}
+                    className="flex-1 px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={handleCancelApplication}
+                    disabled={isSubmittingCancel}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-all active:scale-95 disabled:opacity-50 ${
+                      isPaidStatus ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-red-600 hover:bg-red-700'
+                    }`}
+                  >
+                    {isSubmittingCancel ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span>{isPaidStatus ? 'Submit Request' : 'Confirm Cancellation'}</span>
                     )}
                   </button>
                 </div>

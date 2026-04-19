@@ -832,4 +832,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- 11. Refund Requests
+CREATE TABLE IF NOT EXISTS refund_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  application_id UUID REFERENCES applications(id) ON DELETE CASCADE,
+  recruiter_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  amount NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS for refund_requests
+ALTER TABLE refund_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Recruiters manage own refund requests" ON refund_requests;
+CREATE POLICY "Recruiters manage own refund requests" ON refund_requests 
+FOR ALL USING (recruiter_id = auth.uid()) 
+WITH CHECK (recruiter_id = auth.uid());
+
+DROP POLICY IF EXISTS "Admins manage all refund requests" ON refund_requests;
+CREATE POLICY "Admins manage all refund requests" ON refund_requests 
+FOR ALL USING (public.is_admin()) 
+WITH CHECK (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_refund_requests_app_id ON refund_requests(application_id);
+CREATE INDEX IF NOT EXISTS idx_refund_requests_recruiter_id ON refund_requests(recruiter_id);
+
 

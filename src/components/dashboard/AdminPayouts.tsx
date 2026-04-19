@@ -16,6 +16,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const AdminPayouts: React.FC = () => {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [refundRequests, setRefundRequests] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'withdrawals' | 'refunds'>('withdrawals');
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
@@ -23,8 +25,44 @@ const AdminPayouts: React.FC = () => {
   const [selectedPayout, setSelectedPayout] = useState<any>(null);
 
   useEffect(() => {
-    fetchWithdrawals();
-  }, []);
+    if (activeTab === 'withdrawals') {
+      fetchWithdrawals();
+    } else {
+      fetchRefundRequests();
+    }
+  }, [activeTab]);
+
+  const fetchRefundRequests = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('refund_requests')
+        .select(`
+          *,
+          profiles (
+            first_name,
+            last_name,
+            email
+          ),
+          applications (
+            id,
+            student_id,
+            students (
+              firstname,
+              lastname
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setRefundRequests(data || []);
+    } catch (err) {
+      console.error('Error fetching refund requests:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchWithdrawals = async () => {
     setIsLoading(true);
@@ -103,6 +141,39 @@ const AdminPayouts: React.FC = () => {
     }
   };
 
+  const handleRefundAction = async (id: string, applicationId: string, newStatus: 'approved' | 'rejected') => {
+    setIsProcessing(id);
+    try {
+      // 1. Update refund request status
+      const { error: requestError } = await supabase
+        .from('refund_requests')
+        .update({ status: newStatus })
+        .eq('id', id);
+
+      if (requestError) throw requestError;
+
+      // 2. Update application status
+      const appStatus = newStatus === 'approved' ? 'Refund' : 'Payment received';
+      const { error: appError } = await supabase
+        .from('applications')
+        .update({ status: appStatus })
+        .eq('id', applicationId);
+
+      if (appError) throw appError;
+
+      await fetchRefundRequests();
+      if (selectedPayout && selectedPayout.id === id) {
+        setSelectedPayout({ ...selectedPayout, status: newStatus });
+      }
+      alert(`Refund request ${newStatus} successfully.`);
+    } catch (err) {
+      console.error('Error handling refund:', err);
+      alert('Error updating refund status');
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
   const filteredWithdrawals = withdrawals.filter(w => {
     const firstName = w.profiles?.first_name || '';
     const lastName = w.profiles?.last_name || '';
@@ -130,17 +201,41 @@ const AdminPayouts: React.FC = () => {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold text-gray-900">Payout Management</h1>
-          <p className="text-gray-500">Processing and approving withdrawal requests.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Finance Management</h1>
+          <p className="text-gray-500">Processing withdrawals and refund requests.</p>
         </div>
-        <button 
-          onClick={fetchWithdrawals}
-          disabled={isLoading}
-          className="flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all"
-        >
-          <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="bg-gray-100 p-1 rounded-2xl flex items-center">
+            <button
+              onClick={() => setActiveTab('withdrawals')}
+              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'withdrawals' 
+                  ? 'bg-white text-indigo-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Withdrawals
+            </button>
+            <button
+              onClick={() => setActiveTab('refunds')}
+              className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'refunds' 
+                  ? 'bg-white text-indigo-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Refunds
+            </button>
+          </div>
+          <button 
+            onClick={activeTab === 'withdrawals' ? fetchWithdrawals : fetchRefundRequests}
+            disabled={isLoading}
+            className="flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all"
+          >
+            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -207,9 +302,9 @@ const AdminPayouts: React.FC = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                <th className="py-4 font-bold">User</th>
-                <th className="py-4 font-bold">Method</th>
-                <th className="py-4 font-bold">Amount</th>
+                <th className="py-4 font-bold">{activeTab === 'withdrawals' ? 'User' : 'Initiated By'}</th>
+                <th className="py-4 font-bold">{activeTab === 'withdrawals' ? 'Method' : 'Application / Student'}</th>
+                <th className="py-4 font-bold">{activeTab === 'withdrawals' ? 'Amount' : 'Reason'}</th>
                 <th className="py-4 font-bold">Date</th>
                 <th className="py-4 font-bold text-right">Status</th>
               </tr>
@@ -220,70 +315,76 @@ const AdminPayouts: React.FC = () => {
                   <td colSpan={5} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <RefreshCw size={24} className="text-indigo-600 animate-spin" />
-                      <p className="text-sm text-gray-500">Loading payouts...</p>
+                      <p className="text-sm text-gray-500">Loading {activeTab}...</p>
                     </div>
                   </td>
                 </tr>
-              ) : filteredWithdrawals.length === 0 ? (
+              ) : (activeTab === 'withdrawals' ? filteredWithdrawals : refundRequests).length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-gray-500">
-                    No payouts found
+                    No {activeTab} found
                   </td>
                 </tr>
               ) : (
-                filteredWithdrawals.map((w) => (
+                (activeTab === 'withdrawals' ? filteredWithdrawals : refundRequests).map((item) => (
                   <tr 
-                    key={w.id} 
-                    onClick={() => setSelectedPayout(w)}
+                    key={item.id} 
+                    onClick={() => setSelectedPayout(item)}
                     className="hover:bg-gray-50/50 transition-colors cursor-pointer"
                   >
                     <td className="py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs">
-                          {w.profiles?.first_name?.[0]}{w.profiles?.last_name?.[0]}
+                          {item.profiles?.first_name?.[0]}{item.profiles?.last_name?.[0]}
                         </div>
                         <div>
                           <p className="text-sm font-bold text-gray-900">
-                            {w.profiles?.first_name} {w.profiles?.last_name}
+                            {item.profiles?.first_name} {item.profiles?.last_name}
                           </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-                              {w.profiles?.email}
-                            </span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
-                              w.profiles?.role === 'partner' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                            }`}>
-                              {w.profiles?.role === 'partner' ? 'Recruiter' : 'Institution'}
-                            </span>
-                          </div>
+                          <p className="text-[10px] text-gray-400 font-medium">{item.profiles?.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="py-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CreditCard size={14} className="text-gray-400" />
-                        {w.method}
-                      </div>
+                      {activeTab === 'withdrawals' ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <CreditCard size={14} className="text-gray-400" />
+                          {item.method}
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">App ID: {item.applications?.id.split('-')[0]}...</p>
+                          <p className="text-xs text-gray-500">
+                            {item.applications?.students?.firstname} {item.applications?.students?.lastname}
+                          </p>
+                        </div>
+                      )}
                     </td>
                     <td className="py-4">
-                      <span className="text-sm font-extrabold text-gray-900">
-                        ${w.amount.toLocaleString('en-US')}
-                      </span>
+                      {activeTab === 'withdrawals' ? (
+                        <span className="text-sm font-extrabold text-gray-900">
+                          ${item.amount?.toLocaleString('en-US') || 0}
+                        </span>
+                      ) : (
+                        <p className="text-sm text-gray-600 truncate max-w-[200px]">
+                          {item.reason}
+                        </p>
+                      )}
                     </td>
                     <td className="py-4 text-sm text-gray-500">
-                      {new Date(w.created_at).toLocaleDateString('en-US')}
+                      {new Date(item.created_at).toLocaleDateString('en-US')}
                     </td>
                     <td className="py-4 text-right">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        w.status === 'completed' ? 'bg-green-50 text-green-600' :
-                        w.status === 'rejected' ? 'bg-red-50 text-red-600' :
+                        item.status === 'completed' || item.status === 'approved' ? 'bg-green-50 text-green-600' :
+                        item.status === 'rejected' ? 'bg-red-50 text-red-600' :
                         'bg-amber-50 text-amber-600'
                       }`}>
-                        {w.status === 'completed' ? <CheckCircle2 size={12} /> : 
-                         w.status === 'rejected' ? <XCircle size={12} /> : 
+                        {item.status === 'completed' || item.status === 'approved' ? <CheckCircle2 size={12} /> : 
+                         item.status === 'rejected' ? <XCircle size={12} /> : 
                          <Clock size={12} />}
-                        {w.status === 'completed' ? 'Completed' : 
-                         w.status === 'rejected' ? 'Rejected' : 'Pending'}
+                        {item.status === 'completed' || item.status === 'approved' ? (activeTab === 'withdrawals' ? 'Completed' : 'Approved') : 
+                         item.status === 'rejected' ? 'Rejected' : 'Pending'}
                       </span>
                     </td>
                   </tr>
@@ -306,10 +407,12 @@ const AdminPayouts: React.FC = () => {
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                    <CreditCard size={20} />
+                    {activeTab === 'withdrawals' ? <CreditCard size={20} /> : <RefreshCw size={20} />}
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">Payout Details</h2>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      {activeTab === 'withdrawals' ? 'Payout Details' : 'Refund Request Details'}
+                    </h2>
                     <p className="text-xs text-gray-500">ID: {selectedPayout.id}</p>
                   </div>
                 </div>
@@ -331,52 +434,55 @@ const AdminPayouts: React.FC = () => {
                       {selectedPayout.profiles?.first_name} {selectedPayout.profiles?.last_name}
                     </p>
                     <p className="text-xs text-gray-500">{selectedPayout.profiles?.email}</p>
-                    <span className={`mt-1 inline-block text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
-                      selectedPayout.profiles?.role === 'partner' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
-                    }`}>
-                      {selectedPayout.profiles?.role === 'partner' ? 'Recruiter' : 'Institution'}
-                    </span>
                   </div>
                 </div>
 
+                {activeTab === 'refunds' && (
+                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                    <p className="text-[10px] text-rose-400 font-bold uppercase tracking-widest mb-2">Student & Program</p>
+                    <p className="text-sm font-bold text-gray-900">
+                      {selectedPayout.applications?.students?.firstname} {selectedPayout.applications?.students?.lastname}
+                    </p>
+                    <p className="text-xs text-gray-500">App ID: {selectedPayout.application_id}</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 border border-gray-100 rounded-2xl">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Amount</p>
-                    <p className="text-xl font-extrabold text-gray-900">${selectedPayout.amount.toLocaleString('en-US')}</p>
-                  </div>
-                  <div className="p-4 border border-gray-100 rounded-2xl">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Method</p>
-                    <div className="flex items-center gap-2 text-gray-900 font-bold">
-                      <CreditCard size={14} className="text-gray-400" />
-                      {selectedPayout.method}
-                    </div>
-                  </div>
-                  <div className="p-4 border border-gray-100 rounded-2xl">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Request Date</p>
-                    <p className="text-sm font-bold text-gray-900">
-                      {new Date(selectedPayout.created_at).toLocaleString('en-US')}
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+                      {activeTab === 'withdrawals' ? 'Amount' : 'Request Date'}
+                    </p>
+                    <p className={`${activeTab === 'withdrawals' ? 'text-xl font-extrabold' : 'text-sm font-bold'} text-gray-900`}>
+                      {activeTab === 'withdrawals' 
+                        ? `$${selectedPayout.amount?.toLocaleString('en-US')}`
+                        : new Date(selectedPayout.created_at).toLocaleDateString('en-US')
+                      }
                     </p>
                   </div>
                   <div className="p-4 border border-gray-100 rounded-2xl">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Status</p>
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      selectedPayout.status === 'completed' ? 'bg-green-50 text-green-600' :
+                      selectedPayout.status === 'completed' || selectedPayout.status === 'approved' ? 'bg-green-50 text-green-600' :
                       selectedPayout.status === 'rejected' ? 'bg-red-50 text-red-600' :
                       'bg-amber-50 text-amber-600'
                     }`}>
-                      {selectedPayout.status === 'completed' ? <CheckCircle2 size={12} /> : 
+                      {selectedPayout.status === 'completed' || selectedPayout.status === 'approved' ? <CheckCircle2 size={12} /> : 
                        selectedPayout.status === 'rejected' ? <XCircle size={12} /> : 
                        <Clock size={12} />}
-                      {selectedPayout.status === 'completed' ? 'Completed' : 
+                      {selectedPayout.status === 'completed' || selectedPayout.status === 'approved' ? (activeTab === 'withdrawals' ? 'Completed' : 'Approved') : 
                        selectedPayout.status === 'rejected' ? 'Rejected' : 'Pending'}
                     </span>
                   </div>
                 </div>
 
-                {selectedPayout.details && (
+                {(selectedPayout.details || selectedPayout.reason) && (
                   <div className="p-4 bg-indigo-50/50 border border-indigo-50 rounded-2xl">
-                    <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mb-2">Payment Details</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedPayout.details}</p>
+                    <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mb-2">
+                      {activeTab === 'withdrawals' ? 'Payment Details' : 'Reason for Refund'}
+                    </p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {activeTab === 'withdrawals' ? selectedPayout.details : selectedPayout.reason}
+                    </p>
                   </div>
                 )}
               </div>
@@ -385,15 +491,21 @@ const AdminPayouts: React.FC = () => {
                 {selectedPayout.status === 'pending' ? (
                   <>
                     <button
-                      onClick={() => handleStatusUpdate(selectedPayout.id, selectedPayout.user_id, selectedPayout.amount, 'completed')}
+                      onClick={() => activeTab === 'withdrawals' 
+                        ? handleStatusUpdate(selectedPayout.id, selectedPayout.user_id, selectedPayout.amount, 'completed')
+                        : handleRefundAction(selectedPayout.id, selectedPayout.application_id, 'approved')
+                      }
                       disabled={isProcessing === selectedPayout.id}
                       className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-2xl font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-50 shadow-lg shadow-emerald-100"
                     >
                       {isProcessing === selectedPayout.id ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                      Approve Payout
+                      {activeTab === 'withdrawals' ? 'Approve Payout' : 'Approve Refund'}
                     </button>
                     <button
-                      onClick={() => handleStatusUpdate(selectedPayout.id, selectedPayout.user_id, selectedPayout.amount, 'rejected')}
+                      onClick={() => activeTab === 'withdrawals' 
+                        ? handleStatusUpdate(selectedPayout.id, selectedPayout.user_id, selectedPayout.amount, 'rejected')
+                        : handleRefundAction(selectedPayout.id, selectedPayout.application_id, 'rejected')
+                      }
                       disabled={isProcessing === selectedPayout.id}
                       className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 py-3 rounded-2xl font-bold text-sm hover:bg-red-100 transition-all disabled:opacity-50"
                     >
