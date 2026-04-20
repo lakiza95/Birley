@@ -18,7 +18,9 @@ import {
   Send,
   Users,
   FileIcon,
-  Paperclip
+  Paperclip,
+  UploadCloud,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -68,6 +70,13 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const [cancelReason, setCancelReason] = useState('');
   const [confirmAppId, setConfirmAppId] = useState('');
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editNotes, setEditNotes] = useState(application.notes || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedEditFiles, setSelectedEditFiles] = useState<{ file: File, label: string }[]>([]);
+  const editFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const isPaidStatus = ['Payment received', 'Ready for visa', 'Visa Approved', 'Done', 'Refund'].includes(application.status || '');
 
@@ -396,6 +405,80 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
       alert('Failed to cancel application.');
     } finally {
       setIsSubmittingCancel(false);
+    }
+  };
+
+  const handleSaveApplication = async () => {
+    if (!application.db_id) return;
+    
+    setIsSaving(true);
+    try {
+      // 1. Upload files if any
+      if (selectedEditFiles.length > 0) {
+        for (const item of selectedEditFiles) {
+          const { file, label } = item;
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+          const filePath = `${application.student_id}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('student-documents')
+            .upload(filePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('student-documents')
+            .getPublicUrl(filePath);
+
+          await supabase
+            .from('student_documents')
+            .insert([{
+              student_id: application.student_id,
+              name: label || file.name,
+              type: file.type || 'document',
+              url: publicUrl,
+              size: file.size
+            }]);
+        }
+      }
+
+      // 2. Update notes
+      const { error } = await supabase
+        .from('applications')
+        .update({ notes: editNotes })
+        .eq('id', application.db_id);
+
+      if (error) throw error;
+      
+      setIsEditModalOpen(false);
+      setSelectedEditFiles([]);
+      if (onStatusUpdate) onStatusUpdate();
+      
+      // Refresh local details
+      const { data: updatedApp } = await supabase
+        .from('applications')
+        .select('notes')
+        .eq('id', application.db_id)
+        .single();
+      
+      if (updatedApp) {
+        application.notes = updatedApp.notes;
+      }
+
+      const { data: docs } = await supabase
+        .from('student_documents')
+        .select('*')
+        .eq('student_id', application.student_id);
+      
+      setDocuments(docs || []);
+      
+      alert('Application updated successfully.');
+    } catch (err) {
+      console.error('Error updating application:', err);
+      alert('Failed to update application.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -770,7 +853,13 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                       )}
                     </button>
                     {user.role === 'partner' && (
-                      <button className="flex items-center justify-center gap-2 w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-medium text-sm hover:bg-gray-50 transition-colors active:scale-95">
+                      <button 
+                        onClick={() => {
+                          setEditNotes(application.notes || '');
+                          setIsEditModalOpen(true);
+                        }}
+                        className="flex items-center justify-center gap-2 w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-medium text-sm hover:bg-gray-50 transition-colors active:scale-95"
+                      >
                         <FileText size={18} />
                         <span>Edit Application</span>
                       </button>
@@ -1186,6 +1275,148 @@ const ApplicationCard: React.FC<ApplicationCardProps> = ({
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <span>{isPaidStatus ? 'Submit Request' : 'Confirm Cancellation'}</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Application Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[32px] shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#4338CA] flex items-center justify-center">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">Edit Application</h3>
+                    <p className="text-[10px] text-gray-500">Update details for {application.id}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Application Notes</label>
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Update notes for the admissions committee..."
+                    className="w-full h-32 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-100 outline-none resize-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Documents</label>
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:text-indigo-800 transition-colors"
+                    >
+                      <UploadCloud size={14} />
+                      Add File
+                    </button>
+                  </div>
+                  
+                  <input
+                    type="file"
+                    ref={editFileInputRef}
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        const newFiles = Array.from(e.target.files).map(file => ({
+                          file,
+                          label: file.name.split('.')[0]
+                        }));
+                        setSelectedEditFiles(prev => [...prev, ...newFiles]);
+                      }
+                    }}
+                  />
+
+                  {selectedEditFiles.length > 0 && (
+                    <div className="space-y-3">
+                      {selectedEditFiles.map((item, idx) => (
+                        <div key={idx} className="bg-gray-50 border border-gray-100 rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-[#4338CA] shrink-0">
+                                <FileIcon size={16} />
+                              </div>
+                              <div className="overflow-hidden">
+                                <p className="text-xs font-bold text-gray-900 truncate">{item.file.name}</p>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold">{(item.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEditFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Document Signature (Label)</label>
+                            <input 
+                              type="text"
+                              value={item.label}
+                              onChange={(e) => {
+                                const newFiles = [...selectedEditFiles];
+                                newFiles[idx].label = e.target.value;
+                                setSelectedEditFiles(newFiles);
+                              }}
+                              placeholder="e.g. Passport Copy, IELTS Certificate..."
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-gray-400 italic">
+                    New documents will be added to the student's document profile.
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveApplication}
+                    disabled={isSaving}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#4338CA] text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 active:scale-95"
+                  >
+                    {isSaving ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Send size={18} />
+                        <span>Save Changes</span>
+                      </>
                     )}
                   </button>
                 </div>

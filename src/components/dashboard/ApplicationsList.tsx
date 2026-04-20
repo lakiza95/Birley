@@ -242,6 +242,7 @@ const ApplicationsList: React.FC<ApplicationsListProps> = ({
             } : null,
             program: app.programs?.name || '—',
             status: app.status,
+            notes: app.notes,
             date: new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             priority: 'normal'
           };

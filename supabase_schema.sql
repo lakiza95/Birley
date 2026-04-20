@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS applications (
   program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'Submitted',
   payment_link TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
